@@ -1,0 +1,5 @@
+# Normalisasi ke LF di repo (aman untuk GitHub Actions Linux runner).
+* text=auto eol=lf
+*.png binary
+*.jpeg binary
+*.jpg binary

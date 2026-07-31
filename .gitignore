@@ -1,0 +1,21 @@
+# Config lokal Claude Code (bukan bagian app)
+.claude/
+
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+
+# Data transien & output — di-generate pipeline / GitHub Actions, jangan di-commit
+backend/data/raw/
+backend/data/output/
+
+# Aset referensi/desain (besar) — hapus baris ini kalau mau ikut dipublish
+Patokan.png
+Style.jpeg
+stitch_neubrutalist_meteorological_map_system/
+stitch_neubrutalist_meteorological_map_system.zip
+
+# Misc
+.DS_Store
+Thumbs.db

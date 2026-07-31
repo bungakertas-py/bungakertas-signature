@@ -1,0 +1,62 @@
+name: build-and-deploy
+
+# Jalankan pipeline GFS lalu publish frontend+data ke GitHub Pages.
+# Cron tiap 6 jam (menit :15). Bisa juga dipicu manual (workflow_dispatch).
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "15 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # eccodes butuh pustaka C; wheel pip biasanya sudah membawa binernya,
+      # tapi pasang libeccodes0 sistem sebagai jaring pengaman.
+      - name: Install eccodes system lib (fallback)
+        run: sudo apt-get update && sudo apt-get install -y libeccodes0
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline (unduh GFS + generate output)
+        working-directory: backend/pipeline
+        run: python run.py
+
+      - name: Assemble site (jaga struktur ../backend/data/output)
+        run: |
+          mkdir -p _site/frontend _site/backend/data/output
+          cp -r frontend/. _site/frontend/
+          cp -r backend/data/output/. _site/backend/data/output/
+          printf '<!doctype html><meta http-equiv="refresh" content="0; url=./frontend/index.html">' > _site/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,206 @@
+/* ================================================================
+   Peta Cuaca — layout ala BMKG Signature (fullscreen map +
+   panel mengambang), gaya visual Atmospheric Brutalism (neubrutalist):
+   border ink 3px, hard-shadow 6px tanpa blur, sudut siku 0px.
+   ================================================================ */
+:root {
+  --ink: #1c1b1b;
+  --paper: #fcf8f8;
+  --surface: #fcf8f8;
+  --surface-low: #f6f3f2;
+  --surface-high: #ebe7e7;
+  --surface-highest: #e5e2e1;
+  --white: #ffffff;
+  --primary: #0029d7;
+  --on-primary: #ffffff;
+  --lime: #d2ed26;
+  --on-lime: #5c6900;
+  --variant: #444656;
+
+  --bw: 3px;
+  --shadow: 6px 6px 0 0 var(--ink);
+  --shadow-sm: 4px 4px 0 0 var(--ink);
+
+  --font-display: "Archivo Black", sans-serif;
+  --font-ui: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%;
+  font-family: var(--font-ui); font-weight: 500;
+  color: var(--ink); background: #0a1018; overflow: hidden;
+}
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 500, "GRAD" 0, "opsz" 24;
+  line-height: 1; vertical-align: middle;
+}
+.mono { font-family: var(--font-mono); }
+.label-caps {
+  font-family: var(--font-ui); font-weight: 700;
+  font-size: 11px; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--variant);
+}
+
+/* ===================== MAP STAGE ===================== */
+#stage { position: fixed; inset: 0; }
+#map { position: absolute; inset: 0; background: #0a1018; }
+.leaflet-container { background: #0a1018; font-family: var(--font-ui); }
+.velocity-overlay { pointer-events: none; }
+
+/* Overlay wrapper */
+#ui {
+  position: absolute; inset: 0; padding: 20px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  pointer-events: none; z-index: 500;
+}
+.ui-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.col { display: flex; flex-direction: column; gap: 12px; }
+.col.items-end { align-items: flex-end; }
+
+/* Panel dasar neubrutalist */
+.panel {
+  background: var(--surface); border: var(--bw) solid var(--ink);
+  box-shadow: var(--shadow); pointer-events: auto;
+}
+
+/* ---- Brand: bungakertas ---- */
+.brand { display: flex; align-items: center; gap: 11px; padding: 9px 16px 9px 11px; }
+.brand-logo { flex: none; }
+.brand-text { display: flex; flex-direction: column; line-height: 1.05; }
+.brand-text strong { font-family: var(--font-display); font-size: 20px; letter-spacing: -.01em; }
+.brand-text span { font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em; color: var(--variant); margin-top: 5px; }
+
+/* ---- Layer selector ---- */
+.layers { display: flex; flex-direction: column; width: 224px; }
+.layer-btn {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 18px; background: var(--surface); color: var(--ink);
+  border: none; border-bottom: var(--bw) solid var(--ink);
+  font-family: var(--font-ui); font-weight: 700; font-size: 15px;
+  text-transform: uppercase; text-align: left; cursor: pointer; transition: background .12s;
+}
+.layer-btn:last-child { border-bottom: none; }
+.layer-btn .material-symbols-outlined { color: var(--primary); font-size: 21px; }
+.layer-btn:hover:not(.active):not(.disabled) { background: var(--surface-high); }
+.layer-btn.active { background: var(--lime); color: var(--on-lime); }
+.layer-btn.active .material-symbols-outlined { color: var(--on-lime); }
+.layer-btn.disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---- Model / level / init ---- */
+.selects { width: 224px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.field .label-caps { margin-bottom: 4px; }
+.select-wrap { position: relative; }
+.select-wrap select {
+  width: 100%; appearance: none; -webkit-appearance: none;
+  background: var(--surface-low); color: var(--ink);
+  border: var(--bw) solid var(--ink); padding: 7px 26px 7px 9px;
+  font-family: var(--font-mono); font-size: 12px; cursor: pointer; outline: none;
+}
+.select-wrap select:focus { background: var(--lime); }
+.select-wrap select:disabled { opacity: .6; cursor: not-allowed; }
+.select-wrap .material-symbols-outlined {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  pointer-events: none; font-size: 18px;
+}
+
+/* ---- Lang toggle / zoom / search (kanan atas) ---- */
+.lang { display: flex; border: var(--bw) solid var(--ink); box-shadow: var(--shadow); background: var(--surface); pointer-events: auto; }
+.lang button {
+  padding: 8px 14px; border: none; background: var(--surface);
+  font-family: var(--font-ui); font-weight: 700; font-size: 14px; cursor: pointer;
+}
+.lang button:first-child { border-right: var(--bw) solid var(--ink); }
+.lang button.active { background: var(--lime); color: var(--on-lime); }
+.lang button:disabled { opacity: .5; cursor: not-allowed; }
+
+.zoom { display: flex; flex-direction: column; border: var(--bw) solid var(--ink); box-shadow: var(--shadow); background: var(--surface); pointer-events: auto; }
+.zoom button {
+  width: 46px; height: 46px; display: flex; align-items: center; justify-content: center;
+  border: none; background: var(--surface); cursor: pointer; transition: background .12s;
+}
+.zoom button:first-child { border-bottom: var(--bw) solid var(--ink); }
+.zoom button:hover { background: var(--surface-high); }
+
+.icon-btn {
+  width: 46px; height: 46px; display: flex; align-items: center; justify-content: center;
+  border: var(--bw) solid var(--ink); background: var(--surface);
+  box-shadow: var(--shadow); cursor: pointer; pointer-events: auto; transition: all .1s ease;
+}
+.icon-btn:hover:not(:disabled) { transform: translate(2px, 2px); box-shadow: 3px 3px 0 0 var(--ink); }
+.icon-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ===================== BOTTOM: slider (kiri) + legenda (kanan) ===================== */
+.ui-bottom { display: flex; flex-direction: row; align-items: stretch; gap: 14px; }
+
+/* timeline / slider — bawah kiri; flex:1 → panjangnya otomatis dibatasi legenda di kanan */
+.timeline { flex: 1; min-width: 0; padding: 8px 14px; display: flex; align-items: center; gap: 14px; }
+.tl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.tl-cur { display: flex; justify-content: flex-end; align-items: center; gap: 8px; font-size: 11px; }
+.tl-cur .mono { font-weight: 700; }
+
+/* label tanggal/jam di bawah slider */
+.tl-ticks { position: relative; height: 18px; }
+.tl-tick { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+.tl-tick.edge-start { transform: translateX(0); align-items: flex-start; }
+.tl-tick.edge-end { transform: translateX(-100%); align-items: flex-end; }
+.tl-tick-mark { width: 2px; height: 6px; background: var(--variant); }
+.tl-tick.day .tl-tick-mark { height: 10px; background: var(--ink); }
+.tl-tick-lbl { font-family: var(--font-mono); font-size: 9px; color: var(--variant); margin-top: 2px; white-space: nowrap; }
+.tl-tick.day .tl-tick-lbl { color: var(--ink); font-weight: 700; }
+.tl-btns { display: flex; gap: 10px; }
+.tl-btn {
+  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  border: var(--bw) solid var(--ink); background: var(--surface);
+  box-shadow: 3px 3px 0 0 var(--ink); cursor: pointer; transition: all .1s ease;
+}
+.tl-btn .material-symbols-outlined { font-size: 20px; }
+.tl-btn:hover:not(:disabled) { background: var(--lime); }
+.tl-btn:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: none; }
+.tl-btn:disabled { opacity: .45; cursor: not-allowed; }
+.tl-track { flex: 1; }
+
+/* Range input neubrutalist (kecil) */
+#time-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; background: transparent; cursor: pointer; }
+#time-slider::-webkit-slider-runnable-track { height: 6px; background: var(--surface-highest); border: 2px solid var(--ink); }
+#time-slider::-moz-range-track { height: 6px; background: var(--surface-highest); border: 2px solid var(--ink); }
+#time-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px; margin-top: -7px;
+  background: var(--lime); border: 2px solid var(--ink); border-radius: 0;
+}
+#time-slider::-moz-range-thumb {
+  width: 16px; height: 16px; background: var(--lime); border: 2px solid var(--ink); border-radius: 0;
+}
+
+/* Legenda horizontal (bottom-right) */
+.legend-panel { display: flex; align-items: stretch; border: var(--bw) solid var(--ink); box-shadow: var(--shadow); background: var(--surface); pointer-events: auto; }
+.legend-head {
+  display: flex; align-items: center; padding: 0 14px;
+  background: var(--ink); color: var(--surface); font-size: 13px; font-weight: 700;
+  letter-spacing: .06em; border-right: var(--bw) solid var(--ink);
+}
+.legend { display: flex; }
+.legend-cell {
+  width: 42px; min-height: 36px; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 13px; color: var(--ink);
+  border-right: 1px solid rgba(28,27,27,.2);
+}
+.legend-cell:last-child { border-right: none; }
+.legend-cell.dark { color: var(--surface); }
+
+/* Loading */
+#loading {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 2000; background: var(--surface); color: var(--ink);
+  border: var(--bw) solid var(--ink); box-shadow: var(--shadow);
+  padding: 20px 28px; font-family: var(--font-mono); font-size: 14px; max-width: 420px;
+}
+.leaflet-control-attribution { font-family: var(--font-mono); font-size: 9px; }
+
+/* ---- Responsif: layar sempit, kecilkan sedikit ---- */
+@media (max-width: 720px) {
+  .layers, .selects { width: 190px; }
+  .legend-cell { width: 32px; }
+  .surf-title { font-size: 18px; }
+}

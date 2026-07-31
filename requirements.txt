@@ -1,0 +1,8 @@
+# Dependency pipeline peta cuaca (dipakai GitHub Actions & lokal).
+# Versi dikunci sesuai venv lokal yang sudah terbukti jalan.
+numpy==2.5.1
+xarray==2026.7.0
+cfgrib==0.9.15.1
+eccodes==2.47.0
+pillow==12.3.0
+requests==2.34.2
