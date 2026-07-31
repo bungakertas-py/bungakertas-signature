@@ -41,18 +41,17 @@ _KNOTS_SCALE = [
 
 MS_TO_KNOTS = 1.943844
 
-# Skala warna hujan (mm/jam) -> RGBA. Alpha 0 saat kering supaya peta tembus.
+# Skala warna hujan (mm/jam) -> RGBA OPAQUE: 0 = putih solid (latar bersih, grid
+# tak terlihat), makin deras makin BIRU. Layer hujan = tema terang.
 _RAIN_SCALE = [
-    (0.0,   (0x00, 0x00, 0x00,   0)),
-    (0.2,   (0xa6, 0xd8, 0xf5,  80)),
-    (0.5,   (0x5b, 0xa3, 0xe0, 140)),
-    (1.0,   (0x2b, 0x6c, 0xc4, 190)),
-    (2.0,   (0x35, 0xa8, 0x5a, 210)),
-    (5.0,   (0x9c, 0xd6, 0x3f, 220)),
-    (10.0,  (0xf2, 0xd0, 0x3a, 228)),
-    (20.0,  (0xf2, 0x8a, 0x1f, 234)),
-    (50.0,  (0xe0, 0x37, 0x2a, 240)),
-    (100.0, (0x9c, 0x27, 0x8f, 246)),
+    (0.0,   (0xff, 0xff, 0xff, 255)),   # kering = putih solid
+    (0.3,   (0xd6, 0xe6, 0xf6, 255)),   # gerimis -> biru sangat muda
+    (1.0,   (0xac, 0xcd, 0xef, 255)),   # biru muda
+    (3.0,   (0x6f, 0xaa, 0xe4, 255)),
+    (8.0,   (0x35, 0x7f, 0xd4, 255)),   # biru
+    (20.0,  (0x18, 0x54, 0xba, 255)),   # biru tua
+    (50.0,  (0x0d, 0x33, 0x8f, 255)),   # biru pekat
+    (100.0, (0x08, 0x20, 0x5e, 255)),   # biru tergelap
 ]
 
 

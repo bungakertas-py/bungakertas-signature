@@ -14,8 +14,8 @@ const LEGENDS = {
   },
   rain_surface: {
     head: "mm/jam",
-    cells: [["0.5", "#5ba3e0", 1], ["1", "#2b6cc4", 1], ["2", "#35a85a", 1], ["5", "#9cd63f", 0],
-            ["10", "#f2d03a", 0], ["20", "#f28a1f", 0], ["50", "#e0372a", 1], ["100+", "#9c278f", 1]],
+    cells: [["0.5", "#d6e6f6", 0], ["1", "#accdef", 0], ["3", "#6faae4", 0], ["8", "#357fd4", 1],
+            ["20", "#1854ba", 1], ["50", "#0d338f", 1], ["100+", "#08205e", 1]],
   },
 };
 
@@ -64,10 +64,11 @@ adminPane.style.pointerEvents = "none";
 const labelPane = map.createPane("labels");
 labelPane.style.zIndex = 650;
 labelPane.style.pointerEvents = "none";
-L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png", {
-  subdomains: "abcd", pane: "labels",
-  updateWhenZooming: false, keepBuffer: 4,
-}).addTo(map);
+// Dua set label: GELAP (teks terang, utk tema gelap/angin) & TERANG (teks gelap,
+// utk tema terang/hujan). Ditukar oleh applyTheme() sesuai layer aktif.
+const _lblOpts = { subdomains: "abcd", pane: "labels", updateWhenZooming: false, keepBuffer: 4 };
+const darkLabels = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png", _lblOpts).addTo(map);
+const lightLabels = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", _lblOpts);
 
 // ---- State -------------------------------------------------------------
 let frames = [];
@@ -79,7 +80,32 @@ let playing = false;
 let playTimer = null;
 let activeLayer = "wind_surface";
 let catalog = null;
+let windVelByTime = {};     // valid_time -> velocity_json (partikel angin utk SEMUA layer)
+let worldLayer = null, provLayer = null;   // layer batas (warna diatur per-tema)
 const dataCache = new Map();
+
+// Tema per-layer: angin = gelap (latar peta gelap), hujan = terang (latar putih).
+function applyTheme() {
+  const rain = activeLayer === "rain_surface";
+  // Label: terang saat hujan, gelap saat angin.
+  if (rain) {
+    if (map.hasLayer(darkLabels)) map.removeLayer(darkLabels);
+    if (!map.hasLayer(lightLabels)) lightLabels.addTo(map);
+  } else {
+    if (map.hasLayer(lightLabels)) map.removeLayer(lightLabels);
+    if (!map.hasLayer(darkLabels)) darkLabels.addTo(map);
+  }
+  // Batas: gelap saat hujan (kontras di putih), putih saat angin.
+  const color = rain ? "#1c1b1b" : "#ffffff";
+  const opacity = rain ? 0.7 : 0.85;
+  if (worldLayer) worldLayer.setStyle({ color, opacity });
+  if (provLayer) provLayer.setStyle({ color, opacity });
+}
+
+// Warna partikel angin sesuai tema: gelap di atas hujan-putih, putih di atas angin-gelap.
+function particleColor() {
+  return activeLayer === "rain_surface" ? "#2b3550" : "#ffffff";
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -146,7 +172,7 @@ async function loadAdmin() {
       fetch(ADMIN_BASE + "idn_provinces.geojson").then((r) => (r.ok ? r.json() : null)),
     ]);
     if (world) {
-      L.geoJSON(world, {
+      worldLayer = L.geoJSON(world, {
         pane: "admin",
         renderer,
         style: styleCountry,
@@ -154,18 +180,19 @@ async function loadAdmin() {
         filter: (f) => !f.properties || f.properties.name !== "Indonesia",
       }).addTo(map);
     }
-    if (prov) L.geoJSON(prov, { pane: "admin", renderer, style: styleProv }).addTo(map);
+    if (prov) provLayer = L.geoJSON(prov, { pane: "admin", renderer, style: styleProv }).addTo(map);
+    applyTheme(); // warna batas sesuai layer aktif saat ini
   } catch (e) {
     console.warn("Batas administrasi gagal dimuat:", e);
   }
 }
 
-async function loadFrameData(frame) {
-  if (dataCache.has(frame.velocity_json)) return dataCache.get(frame.velocity_json);
-  const res = await fetch(DATA_BASE + frame.velocity_json);
-  if (!res.ok) throw new Error("Gagal memuat " + frame.velocity_json);
+async function loadVelocity(vj) {
+  if (dataCache.has(vj)) return dataCache.get(vj);
+  const res = await fetch(DATA_BASE + vj);
+  if (!res.ok) throw new Error("Gagal memuat " + vj);
   const data = await res.json();
-  dataCache.set(frame.velocity_json, data);
+  dataCache.set(vj, data);
   return data;
 }
 
@@ -185,6 +212,8 @@ function setActiveLayer(layerKey) {
   document.querySelectorAll(".layer-btn[data-layer]").forEach((b) =>
     b.classList.toggle("active", b.dataset.layer === layerKey));
   renderLegend(layerKey);
+  applyTheme();
+  if (velocityLayer) { map.removeLayer(velocityLayer); velocityLayer = null; } // recreate warna partikel
   buildTicks();
   const slider = $("time-slider");
   if (slider) slider.max = String(frames.length - 1);
@@ -204,10 +233,12 @@ async function showFrame(i) {
   } else {
     speedLayer.setUrl(url);
   }
+  speedLayer.setOpacity(activeLayer === "rain_surface" ? 1 : 0.92); // hujan opaque (latar putih)
 
-  // Partikel angin PUTIH — hanya untuk layer angin; layer hujan tanpa partikel.
-  if (activeLayer === "wind_surface" && frame.velocity_json) {
-    const data = await loadFrameData(frame);
+  // Partikel angin PUTIH — SELALU ada (angin & hujan), dari medan angin waktu sama.
+  const vj = windVelByTime[frame.valid_time];
+  if (vj) {
+    const data = await loadVelocity(vj);
     if (!velocityLayer) {
       velocityLayer = L.velocityLayer({
         displayValues: false,
@@ -218,7 +249,7 @@ async function showFrame(i) {
         data,
         minVelocity: 0, maxVelocity: 25, velocityScale: 0.012,
         particleAge: 90, particleMultiplier: 1 / 260, lineWidth: 1.1,
-        colorScale: ["#ffffff"], frameRate: 24,
+        colorScale: [particleColor()], frameRate: 24,
       });
       velocityLayer.addTo(map);
     } else {
@@ -283,6 +314,10 @@ async function init() {
       btn.classList.toggle("active", key === activeLayer);
     });
     renderLegend(activeLayer);
+
+    // Medan angin per-waktu — partikel dipakai di SEMUA layer (termasuk hujan).
+    const windL = cat.layers["wind_surface"];
+    if (windL) windL.frames.forEach((f) => { if (f.velocity_json) windVelByTime[f.valid_time] = f.velocity_json; });
 
     // Bingkai tampilan = kotak inti (VIEW_CORE) yang diperlebar pada sumbu yang
     // perlu hingga RASIONYA sama dengan jendela desktop. Efeknya: seluruh wilayah
