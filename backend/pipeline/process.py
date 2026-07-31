@@ -10,6 +10,7 @@ Menghasilkan, untuk satu layer angin pada satu langkah forecast:
 from __future__ import annotations
 
 import datetime as dt
+import gzip
 import json
 import warnings
 from pathlib import Path
@@ -41,17 +42,70 @@ _KNOTS_SCALE = [
 
 MS_TO_KNOTS = 1.943844
 
-# Skala warna hujan (mm/jam) -> RGBA OPAQUE: 0 = putih solid (latar bersih, grid
-# tak terlihat), makin deras makin BIRU. Layer hujan = tema terang.
+# Hujan PER-JAM (mm/jam) — rainbow BMKG, ambang per-jam. Kering transparan.
 _RAIN_SCALE = [
-    (0.0,   (0xff, 0xff, 0xff, 255)),   # kering = putih solid
-    (0.3,   (0xd6, 0xe6, 0xf6, 255)),   # gerimis -> biru sangat muda
-    (1.0,   (0xac, 0xcd, 0xef, 255)),   # biru muda
-    (3.0,   (0x6f, 0xaa, 0xe4, 255)),
-    (8.0,   (0x35, 0x7f, 0xd4, 255)),   # biru
-    (20.0,  (0x18, 0x54, 0xba, 255)),   # biru tua
-    (50.0,  (0x0d, 0x33, 0x8f, 255)),   # biru pekat
-    (100.0, (0x08, 0x20, 0x5e, 255)),   # biru tergelap
+    (0.0,  (0x14, 0x37, 0x8f,   0)),   # kering = transparan
+    (1.0,  (0x14, 0x37, 0x8f, 140)),
+    (2.0,  (0x14, 0x37, 0x8f, 225)),   # biru tua
+    (4.0,  (0x23, 0x60, 0xc8, 235)),   # biru
+    (8.0,  (0x22, 0xa5, 0xe0, 240)),   # cyan
+    (10.0, (0x23, 0xd3, 0xc0, 240)),   # turkis
+    (15.0, (0x35, 0xc8, 0x4a, 245)),   # hijau
+    (20.0, (0x8e, 0xd8, 0x2a, 245)),   # hijau-kuning
+    (25.0, (0xea, 0xd8, 0x21, 248)),   # kuning
+    (30.0, (0xf5, 0xa9, 0x1e, 248)),   # oranye
+    (35.0, (0xf2, 0x70, 0x1c, 250)),   # oranye tua
+    (40.0, (0xe4, 0x23, 0x20, 250)),   # merah
+    (50.0, (0xe3, 0x3b, 0xbf, 252)),   # magenta
+    (60.0, (0x8a, 0x29, 0xc8, 255)),   # ungu
+]
+
+# AKUMULASI HUJAN 24 JAM (mm/hari) — rainbow sama, ambang harian (lebih tinggi).
+_RAIN_ACCUM_SCALE = [
+    (0.0,   (0x14, 0x37, 0x8f,   0)),
+    (2.0,   (0x14, 0x37, 0x8f, 120)),
+    (5.0,   (0x14, 0x37, 0x8f, 235)),
+    (10.0,  (0x23, 0x60, 0xc8, 240)),
+    (20.0,  (0x22, 0xa5, 0xe0, 240)),
+    (40.0,  (0x23, 0xd3, 0xc0, 242)),
+    (60.0,  (0x35, 0xc8, 0x4a, 245)),
+    (90.0,  (0x8e, 0xd8, 0x2a, 245)),
+    (120.0, (0xea, 0xd8, 0x21, 248)),
+    (150.0, (0xf5, 0xa9, 0x1e, 248)),
+    (200.0, (0xf2, 0x70, 0x1c, 250)),
+    (300.0, (0xe4, 0x23, 0x20, 252)),
+    (400.0, (0xe3, 0x3b, 0xbf, 253)),
+    (500.0, (0x8a, 0x29, 0xc8, 255)),
+]
+
+# Suhu (°C) OPAQUE: biru dingin -> merah panas.
+_TEMP_SCALE = [
+    (-10, (0x2b, 0x1c, 0x6b, 255)), (0, (0x25, 0x3f, 0xa0, 255)),
+    (8,   (0x2b, 0x83, 0xba, 255)), (16, (0x4d, 0xaf, 0x8f, 255)),
+    (22,  (0xa6, 0xd9, 0x6a, 255)), (28, (0xfe, 0xe0, 0x8b, 255)),
+    (32,  (0xfd, 0xae, 0x61, 255)), (36, (0xf4, 0x6d, 0x43, 255)),
+    (42,  (0xa5, 0x00, 0x26, 255)),
+]
+
+# Kelembapan (%) OPAQUE: coklat kering -> hijau -> biru lembap.
+_HUM_SCALE = [
+    (0,  (0x7a, 0x45, 0x0a, 255)), (25, (0xb9, 0x84, 0x3a, 255)),
+    (50, (0x88, 0xb0, 0x55, 255)), (70, (0x35, 0x9a, 0x86, 255)),
+    (85, (0x21, 0x6b, 0xb0, 255)), (100, (0x12, 0x3f, 0x86, 255)),
+]
+
+# Tutupan awan (%) RGBA: cerah transparan -> abu (makin tertutup makin pekat).
+_CLOUD_SCALE = [
+    (0,   (0xff, 0xff, 0xff,   0)), (20, (0xc8, 0xd0, 0xd8,  70)),
+    (50,  (0xaa, 0xb4, 0xbe, 150)), (80, (0x96, 0xa0, 0xac, 205)),
+    (100, (0x78, 0x82, 0x8e, 235)),
+]
+
+# Tekanan MSL (hPa) OPAQUE: rendah (badai) ungu/biru -> tinggi merah.
+_PRESS_SCALE = [
+    (980,  (0x5e, 0x3c, 0x99, 255)), (995, (0x35, 0x6b, 0xc4, 255)),
+    (1005, (0x7d, 0xc8, 0xd8, 255)), (1013, (0xf0, 0xf0, 0xe0, 255)),
+    (1020, (0xf4, 0xc0, 0x60, 255)), (1030, (0xe0, 0x5a, 0x3a, 255)),
 ]
 
 
@@ -167,7 +221,14 @@ def _render_scalar_preview(values: np.ndarray, scale: list, dest: Path, scale_up
     img.save(dest)
 
 
-_SCALAR_SCALES = {"rain_surface": _RAIN_SCALE}
+_SCALAR_SCALES = {
+    "rain_surface": _RAIN_SCALE,
+    "rain_accum_surface": _RAIN_ACCUM_SCALE,
+    "temp_surface": _TEMP_SCALE,
+    "humidity_surface": _HUM_SCALE,
+    "cloud_surface": _CLOUD_SCALE,
+    "pressure_surface": _PRESS_SCALE,
+}
 
 
 def _export_velocity_json(u: np.ndarray, v: np.ndarray, grid: dict,
@@ -236,7 +297,7 @@ def process_wind(grib_path: Path, layer_key: str, run: dt.datetime, fstep: int,
         "speed_knots_max": round(float(np.nanmax(speed_kt)), 1),
     }
     meta_json.write_text(json.dumps(meta, indent=2))
-    return meta
+    return meta, {"u": u, "v": v}
 
 
 def process_scalar(grib_path: Path, layer_key: str, run: dt.datetime, fstep: int,
@@ -244,7 +305,8 @@ def process_scalar(grib_path: Path, layer_key: str, run: dt.datetime, fstep: int
     """Proses satu file GRIB skalar (mis. hujan) -> PNG heatmap berwarna + metadata."""
     layer = LAYERS[layer_key]
     values, grid = _load_scalar(grib_path, layer.get("filter_keys"))
-    values = values * float(layer.get("to_unit", 1.0))   # ke satuan tampilan (mm/jam)
+    # ke satuan tampilan: value * to_unit + offset (mis. K->°C, Pa->hPa).
+    values = values * float(layer.get("to_unit", 1.0)) + float(layer.get("offset", 0.0))
 
     valid_time = run + dt.timedelta(hours=fstep)
     base = f"{layer_key}_{run:%Y%m%d_%H}_f{fstep:03d}"
@@ -270,7 +332,82 @@ def process_scalar(grib_path: Path, layer_key: str, run: dt.datetime, fstep: int
         "value_max": round(float(np.nanmax(values)), 2),
     }
     meta_json.write_text(json.dumps(meta, indent=2))
+    return meta, {"values": values}
+
+
+def load_prate_mmhr(grib_path: Path) -> tuple[np.ndarray, dict]:
+    """Muat PRATE (instant) sebagai mm/jam + grid (untuk akumulasi harian)."""
+    vals, grid = _load_scalar(grib_path, {"stepType": "instant"})
+    return vals * 3600.0, grid
+
+
+def write_scalar_frame(values: np.ndarray, grid: dict, layer_key: str, run: dt.datetime,
+                       valid_dt: dt.datetime, units: str, base_suffix: str,
+                       extra: dict | None = None, out_dir: Path = OUTPUT_DIR) -> dict:
+    """Render heatmap + tulis meta untuk array skalar yang SUDAH dihitung
+    (dipakai mis. akumulasi hujan harian). base_suffix jadi bagian nama file."""
+    scale = _SCALAR_SCALES.get(layer_key, _RAIN_SCALE)
+    base = f"{layer_key}_{run:%Y%m%d_%H}_{base_suffix}"
+    preview_png = out_dir / f"{base}_preview.png"
+    meta_json = out_dir / f"{base}.json"
+    _render_scalar_preview(values, scale, preview_png)
+    meta = {
+        "layer": layer_key, "kind": "scalar", "model": "GFS",
+        "level": LAYERS[layer_key]["level_label"],
+        "run_time": run.strftime("%Y-%m-%dT%H:00:00Z"),
+        "valid_time": valid_dt.strftime("%Y-%m-%dT%H:00:00Z"),
+        "forecast_step_hours": int((valid_dt - run).total_seconds() // 3600),
+        "bounds": [grid["west"], grid["south"], grid["east"], grid["north"]],
+        "width": grid["width"], "height": grid["height"],
+        "units": units, "preview_image": preview_png.name,
+        "value_max": round(float(np.nanmax(values)), 2),
+    }
+    if extra:
+        meta.update(extra)
+    meta_json.write_text(json.dumps(meta, indent=2))
     return meta
+
+
+# Encoding nilai per-titik (point_data.bin.gz). value = stored*scale + offset.
+_POINT_ENC = {
+    "u":        {"dtype": "int16", "scale": 0.01, "offset": 0.0},
+    "v":        {"dtype": "int16", "scale": 0.01, "offset": 0.0},
+    "rain":     {"dtype": "int16", "scale": 0.1,  "offset": 0.0},
+    "temp":     {"dtype": "int16", "scale": 0.1,  "offset": 0.0},
+    "humidity": {"dtype": "uint8", "scale": 1.0,  "offset": 0.0},
+    "cloud":    {"dtype": "uint8", "scale": 1.0,  "offset": 0.0},
+    "pressure": {"dtype": "int16", "scale": 0.1,  "offset": 1000.0},
+}
+_NP_DTYPE = {"int16": np.int16, "uint8": np.uint8}
+
+
+def write_point_data(series: dict, times: list, grid: dict, out_dir: Path = OUTPUT_DIR) -> int:
+    """Emit deret-waktu semua variabel untuk lookup per-titik:
+    point_data.bin.gz (biner int16/uint8 terkompresi) + point_meta.json (layout).
+    series = {var: [array per waktu]} berorientasi baris-0=utara, kolom-0=barat."""
+    ntime, ny, nx = len(times), grid["height"], grid["width"]
+    blob = bytearray()
+    layout = []
+    for var, enc in _POINT_ENC.items():
+        arrs = series.get(var)
+        if not arrs or len(arrs) != ntime:
+            continue
+        stacked = np.stack([np.nan_to_num(a) for a in arrs]).astype("float32")  # (t,ny,nx)
+        stored = np.round((stacked - enc["offset"]) / enc["scale"]).astype(_NP_DTYPE[enc["dtype"]])
+        b = stored.tobytes(order="C")
+        layout.append({"var": var, "dtype": enc["dtype"], "scale": enc["scale"],
+                       "offset": enc["offset"], "byteOffset": len(blob), "byteLength": len(b)})
+        blob += b
+    (out_dir / "point_data.bin.gz").write_bytes(gzip.compress(bytes(blob), compresslevel=6))
+    meta = {
+        "bounds": [grid["west"], grid["south"], grid["east"], grid["north"]],
+        "nx": nx, "ny": ny,
+        "dx": round((grid["east"] - grid["west"]) / (nx - 1), 4),
+        "dy": round((grid["north"] - grid["south"]) / (ny - 1), 4),
+        "times": times, "vars": layout,
+    }
+    (out_dir / "point_meta.json").write_text(json.dumps(meta))
+    return (out_dir / "point_data.bin.gz").stat().st_size
 
 
 if __name__ == "__main__":
@@ -283,6 +420,6 @@ if __name__ == "__main__":
     parts = name.split("_")
     run = dt.datetime.strptime(parts[1] + parts[2], "%Y%m%d%H").replace(tzinfo=dt.timezone.utc)
     fstep = int(parts[3][1:])
-    meta = process_wind(Path(grib), "wind_surface", run, fstep)
+    meta, _ = process_wind(Path(grib), "wind_surface", run, fstep)
     print("OK — metadata:")
     print(json.dumps(meta, indent=2))

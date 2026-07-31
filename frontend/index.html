@@ -44,10 +44,11 @@
               <span class="material-symbols-outlined">air</span> Angin
             </button>
             <button class="layer-btn" data-layer="rain_surface"><span class="material-symbols-outlined">rainy</span> Hujan</button>
-            <button class="layer-btn disabled" title="Fase berikutnya"><span class="material-symbols-outlined">thermostat</span> Suhu</button>
-            <button class="layer-btn disabled" title="Fase berikutnya"><span class="material-symbols-outlined">humidity_percentage</span> Kelembapan</button>
-            <button class="layer-btn disabled" title="Fase berikutnya"><span class="material-symbols-outlined">cloud</span> Tutupan Awan</button>
-            <button class="layer-btn disabled" title="Fase berikutnya"><span class="material-symbols-outlined">speed</span> Tekanan</button>
+            <button class="layer-btn" data-layer="rain_accum_surface"><span class="material-symbols-outlined">water_drop</span> Akum. Hujan 24J</button>
+            <button class="layer-btn" data-layer="temp_surface"><span class="material-symbols-outlined">thermostat</span> Suhu</button>
+            <button class="layer-btn" data-layer="humidity_surface"><span class="material-symbols-outlined">humidity_percentage</span> Kelembapan</button>
+            <button class="layer-btn" data-layer="cloud_surface"><span class="material-symbols-outlined">cloud</span> Tutupan Awan</button>
+            <button class="layer-btn" data-layer="pressure_surface"><span class="material-symbols-outlined">speed</span> Tekanan</button>
           </div>
 
           <div class="panel selects">
@@ -85,7 +86,13 @@
             <button id="zoom-in" title="Perbesar"><span class="material-symbols-outlined">add</span></button>
             <button id="zoom-out" title="Perkecil"><span class="material-symbols-outlined">remove</span></button>
           </div>
-          <button class="icon-btn" disabled title="Cari (segera)"><span class="material-symbols-outlined">search</span></button>
+          <div class="search-wrap">
+            <button id="search-btn" class="icon-btn" title="Cari kota / kabupaten"><span class="material-symbols-outlined">search</span></button>
+            <div id="search-box" class="search-box">
+              <input id="search-input" type="text" placeholder="Cari kota / kabupaten…" autocomplete="off" />
+              <div id="search-results" class="search-results"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -112,6 +119,25 @@
     </div>
 
     <div id="loading">Memuat data model…</div>
+
+    <!-- Panel detail titik (muncul saat klik peta) -->
+    <aside id="point-panel">
+      <div class="pt-head">
+        <div class="pt-head-top">
+          <span class="badge badge-lime">TITIK TERPILIH</span>
+          <div class="pt-head-btns">
+            <button id="pt-hide" class="pt-close" title="Sembunyikan"><span class="material-symbols-outlined">chevron_right</span></button>
+            <button id="pt-close" class="pt-close" title="Tutup"><span class="material-symbols-outlined">close</span></button>
+          </div>
+        </div>
+        <div class="pt-coords mono" id="pt-coords">—</div>
+      </div>
+      <div class="pt-body" id="pt-body"></div>
+      <div class="pt-foot">
+        <button id="pt-export" class="pt-export"><span class="material-symbols-outlined">download</span> EXPORT CSV</button>
+      </div>
+    </aside>
+    <button id="pt-reopen" title="Tampilkan detail titik"><span class="material-symbols-outlined">chevron_left</span></button>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

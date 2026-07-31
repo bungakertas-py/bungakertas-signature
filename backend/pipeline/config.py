@@ -50,7 +50,7 @@ LAYERS = {
         "unscale": [-40.0, 40.0],
     },
     "rain_surface": {
-        "kind": "scalar",           # satu variabel -> heatmap PNG (tanpa partikel)
+        "kind": "scalar",           # HUJAN per-jam (laju), 3-jaman
         "var": "PRATE",             # laju presipitasi permukaan (kg m-2 s-1)
         "grib_level": "surface",
         "level_label": "surface",
@@ -58,6 +58,31 @@ LAYERS = {
         "units": "mm/jam",
         # PRATE punya 2 stepType (instant & avg) di f003+; ambil laju SESAAT.
         "filter_keys": {"stepType": "instant"},
+    },
+    "rain_accum_surface": {
+        "kind": "scalar",           # AKUMULASI HUJAN 24 JAM (harian; lihat run_rain_daily)
+        "var": "PRATE",
+        "grib_level": "surface",
+        "level_label": "surface",
+        "units": "mm/hari",
+        "filter_keys": {"stepType": "instant"},
+    },
+    "temp_surface": {
+        "kind": "scalar", "var": "TMP", "grib_level": "2_m_above_ground",
+        "level_label": "surface", "offset": -273.15, "units": "°C",  # K -> °C
+    },
+    "humidity_surface": {
+        "kind": "scalar", "var": "RH", "grib_level": "2_m_above_ground",
+        "level_label": "surface", "units": "%",
+    },
+    "cloud_surface": {
+        "kind": "scalar", "var": "TCDC", "grib_level": "entire_atmosphere",
+        "level_label": "surface", "units": "%",
+        "filter_keys": {"stepType": "instant"},   # TCDC entire-atm punya instant & avg
+    },
+    "pressure_surface": {
+        "kind": "scalar", "var": "PRMSL", "grib_level": "mean_sea_level",
+        "level_label": "surface", "to_unit": 0.01, "units": "hPa",  # Pa -> hPa
     },
 }
 

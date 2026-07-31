@@ -13,9 +13,12 @@ import glob
 import json
 from pathlib import Path
 
+import numpy as np
+
 from config import KEEP_PAST_HOURS, LAYERS, OUTPUT_DIR
 from download import download_grib, latest_available_run
-from process import process_scalar, process_wind
+from process import (load_prate_mmhr, process_scalar, process_wind,
+                     write_point_data, write_scalar_frame)
 
 # Langkah forecast yang diambil (jam): 0..72 tiap 3 jam (3 hari ke depan).
 FORECAST_STEPS = list(range(0, 73, 3))
@@ -27,20 +30,46 @@ def _var_names(layer: dict) -> list[str]:
     return [layer["var"]]
 
 
-def run_layer(layer_key: str, run: dt.datetime, steps: list[int]) -> int:
-    """Unduh + proses satu layer untuk semua langkah forecast. Kembalikan jumlah frame."""
+# Layer -> nama variabel di point_data (untuk deret-waktu per-titik).
+POINT_VAR_OF = {
+    "wind_surface": ("u", "v"),
+    "rain_surface": ("rain",),
+    "temp_surface": ("temp",),
+    "humidity_surface": ("humidity",),
+    "cloud_surface": ("cloud",),
+    "pressure_surface": ("pressure",),
+}
+
+
+def _collect_point(ctx: dict, meta: dict, arr: dict, pvars: tuple, fstep: int) -> None:
+    if ctx["grid"] is None:
+        w, s, e, nn = meta["bounds"]
+        ctx["grid"] = {"west": w, "south": s, "east": e, "north": nn,
+                       "width": meta["width"], "height": meta["height"]}
+    ctx["times"][fstep] = meta["valid_time"]
+    if len(pvars) == 2:  # angin u,v
+        ctx["series"].setdefault("u", {})[fstep] = arr["u"]
+        ctx["series"].setdefault("v", {})[fstep] = arr["v"]
+    else:
+        ctx["series"].setdefault(pvars[0], {})[fstep] = arr["values"]
+
+
+def run_layer(layer_key: str, run: dt.datetime, steps: list[int], ctx: dict | None = None) -> int:
+    """Unduh + proses satu layer untuk semua langkah forecast. Kembalikan jumlah frame.
+    Jika ctx diberi, kumpulkan array mentah untuk point_data (deret-waktu per-titik)."""
     layer = LAYERS[layer_key]
     grib_level = layer["grib_level"]
     var_names = _var_names(layer)
+    pvars = POINT_VAR_OF.get(layer_key) if ctx is not None else None
     n = 0
     for fstep in steps:
         try:
             grib = download_grib(run, fstep, grib_level, var_names)
             if layer["kind"] == "vector":
-                meta = process_wind(grib, layer_key, run, fstep)
+                meta, arr = process_wind(grib, layer_key, run, fstep)
                 extra = f"max {meta['speed_knots_max']} kt"
             else:
-                meta = process_scalar(grib, layer_key, run, fstep)
+                meta, arr = process_scalar(grib, layer_key, run, fstep)
                 extra = f"max {meta['value_max']} {meta['units']}"
             grib.unlink(missing_ok=True)  # buang GRIB mentah, hemat disk
         except Exception as e:  # run belum lengkap / gangguan jaringan / decode
@@ -48,6 +77,43 @@ def run_layer(layer_key: str, run: dt.datetime, steps: list[int]) -> int:
             continue
         n += 1
         print(f"  + {layer_key} f{fstep:03d} valid {meta['valid_time']}  ({extra})")
+        if pvars:
+            _collect_point(ctx, meta, arr, pvars, fstep)
+    return n
+
+
+def run_rain_daily(layer_key: str, run: dt.datetime, steps: list[int]) -> int:
+    """AKUMULASI HARIAN (mm/hari) untuk layer_key: jumlahkan PRATE*3jam per tanggal,
+    hasilkan 1 frame per hari PENUH (8 langkah 3-jaman). Slider = per tanggal."""
+    layer = LAYERS[layer_key]
+    accum: dict[str, np.ndarray] = {}
+    counts: dict[str, int] = {}
+    grid = None
+    for fstep in steps:
+        try:
+            g = download_grib(run, fstep, layer["grib_level"], [layer["var"]])
+            vals, grid = load_prate_mmhr(g)   # mm/jam
+            g.unlink(missing_ok=True)
+        except Exception as e:
+            print(f"  ! lewati {layer_key} f{fstep:03d}: {e}")
+            continue
+        day = (run + dt.timedelta(hours=fstep)).strftime("%Y-%m-%d")
+        contrib = vals * 3.0                  # mm dalam interval 3 jam
+        if day in accum:
+            accum[day] += contrib
+            counts[day] += 1
+        else:
+            accum[day] = contrib
+            counts[day] = 1
+    n = 0
+    for day in sorted(accum):
+        if counts[day] < 8:                   # hari tak penuh (butuh 24 jam) -> lewati
+            continue
+        valid_dt = dt.datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=dt.timezone.utc)
+        m = write_scalar_frame(accum[day], grid, layer_key, run, valid_dt,
+                               layer["units"], day.replace("-", ""), {"period_hours": 24})
+        n += 1
+        print(f"  + {layer_key} HARIAN {day}  (max {m['value_max']} mm)")
     return n
 
 
@@ -71,9 +137,9 @@ def reconcile_and_catalog(run: dt.datetime) -> tuple[dict, int]:
     cutoff = run - dt.timedelta(hours=KEEP_PAST_HOURS)
 
     metas: list[dict] = []
-    for mp in glob.glob(str(OUTPUT_DIR / "*_f*.json")):
+    for mp in glob.glob(str(OUTPUT_DIR / "*.json")):
         p = Path(mp)
-        if p.name.endswith("_velocity.json"):
+        if p.name == "catalog.json" or p.name.endswith("_velocity.json"):
             continue
         try:
             m = json.loads(p.read_text())
@@ -158,9 +224,24 @@ def main() -> None:
     print("== Pipeline Peta Cuaca (GFS) ==")
     print(f"Run GFS: {run:%Y-%m-%d %HZ} | langkah: {FORECAST_STEPS[0]}..{FORECAST_STEPS[-1]} jam")
 
+    ctx = {"series": {}, "times": {}, "grid": None}   # kumpulan nilai utk point_data
     for layer_key in LAYERS:
         print(f"\nLayer: {layer_key}")
-        run_layer(layer_key, run, FORECAST_STEPS)
+        if layer_key == "rain_accum_surface":
+            run_rain_daily(layer_key, run, FORECAST_STEPS)   # akumulasi 24 jam
+        else:
+            run_layer(layer_key, run, FORECAST_STEPS, ctx)
+
+    # point_data: deret-waktu semua variabel utk lookup per-titik (langkah yg ada di SEMUA var)
+    common = None
+    for d in ctx["series"].values():
+        common = set(d) if common is None else (common & set(d))
+    steps = sorted(common or [])
+    if steps and ctx["grid"]:
+        times = [ctx["times"][s] for s in steps]
+        series = {var: [d[s] for s in steps] for var, d in ctx["series"].items()}
+        sz = write_point_data(series, times, ctx["grid"])
+        print(f"\npoint_data.bin.gz: {sz/1e6:.1f} MB ({len(times)} waktu, {len(series)} var)")
 
     catalog, total = reconcile_and_catalog(run)
     (OUTPUT_DIR / "catalog.json").write_text(json.dumps(catalog, indent=2))
