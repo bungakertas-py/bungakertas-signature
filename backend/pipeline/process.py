@@ -41,6 +41,20 @@ _KNOTS_SCALE = [
 
 MS_TO_KNOTS = 1.943844
 
+# Skala warna hujan (mm/jam) -> RGBA. Alpha 0 saat kering supaya peta tembus.
+_RAIN_SCALE = [
+    (0.0,   (0x00, 0x00, 0x00,   0)),
+    (0.2,   (0xa6, 0xd8, 0xf5,  80)),
+    (0.5,   (0x5b, 0xa3, 0xe0, 140)),
+    (1.0,   (0x2b, 0x6c, 0xc4, 190)),
+    (2.0,   (0x35, 0xa8, 0x5a, 210)),
+    (5.0,   (0x9c, 0xd6, 0x3f, 220)),
+    (10.0,  (0xf2, 0xd0, 0x3a, 228)),
+    (20.0,  (0xf2, 0x8a, 0x1f, 234)),
+    (50.0,  (0xe0, 0x37, 0x2a, 240)),
+    (100.0, (0x9c, 0x27, 0x8f, 246)),
+]
+
 
 def _load_wind(grib_path: Path) -> tuple[np.ndarray, np.ndarray, dict]:
     """Muat u/v dari GRIB, orientasikan agar baris-0 = utara, kolom-0 = barat."""
@@ -107,6 +121,56 @@ def _render_speed_preview(u: np.ndarray, v: np.ndarray, dest: Path, scale: int =
     img.save(dest)
 
 
+def _load_scalar(grib_path: Path, filter_keys: dict | None = None) -> tuple[np.ndarray, dict]:
+    """Muat satu variabel skalar dari GRIB, orientasi baris-0=utara, kolom-0=barat.
+
+    filter_keys mis. {'stepType': 'instant'} untuk memilih satu varian bila GRIB
+    punya beberapa (spt PRATE instant vs avg).
+    """
+    backend_kwargs = {"indexpath": ""}
+    if filter_keys:
+        backend_kwargs["filter_by_keys"] = filter_keys
+    ds = xr.open_dataset(grib_path, engine="cfgrib", backend_kwargs=backend_kwargs)
+    name = list(ds.data_vars)[0]            # subset kita hanya 1 variabel
+    da = ds[name]
+    if float(ds.longitude[0]) > float(ds.longitude[-1]):
+        da = da.isel(longitude=slice(None, None, -1))
+    if float(ds.latitude[0]) < float(ds.latitude[-1]):
+        da = da.isel(latitude=slice(None, None, -1))
+    meta = {
+        "west": float(min(ds.longitude.values)),
+        "east": float(max(ds.longitude.values)),
+        "south": float(min(ds.latitude.values)),
+        "north": float(max(ds.latitude.values)),
+        "width": int(da.sizes["longitude"]),
+        "height": int(da.sizes["latitude"]),
+    }
+    return da.values.astype("float32"), meta
+
+
+def _scalar_to_rgba(values: np.ndarray, scale: list) -> np.ndarray:
+    """Petakan nilai skalar ke RGBA via interpolasi linear skala warna."""
+    stops = np.array([s[0] for s in scale], dtype="float32")
+    cols = np.array([s[1] for s in scale], dtype="float32")   # (n, 4)
+    v = np.nan_to_num(values)
+    out = np.empty(v.shape + (4,), dtype="float32")
+    for c in range(4):
+        out[..., c] = np.interp(v, stops, cols[:, c])
+    return out.round().astype("uint8")
+
+
+def _render_scalar_preview(values: np.ndarray, scale: list, dest: Path, scale_up: int = 4) -> None:
+    """PNG heatmap skalar berwarna (RGBA, transparan di area nilai ~0)."""
+    rgba = _scalar_to_rgba(values, scale)
+    img = Image.fromarray(rgba, mode="RGBA")
+    if scale_up > 1:
+        img = img.resize((img.width * scale_up, img.height * scale_up), Image.BILINEAR)
+    img.save(dest)
+
+
+_SCALAR_SCALES = {"rain_surface": _RAIN_SCALE}
+
+
 def _export_velocity_json(u: np.ndarray, v: np.ndarray, grid: dict,
                           run: dt.datetime, fstep: int, dest: Path) -> None:
     """Tulis JSON format 'velocity' (dipakai leaflet-velocity / earth wind-js).
@@ -171,6 +235,40 @@ def process_wind(grib_path: Path, layer_key: str, run: dt.datetime, fstep: int,
         "preview_image": preview_png.name,
         "velocity_json": velocity_json.name,
         "speed_knots_max": round(float(np.nanmax(speed_kt)), 1),
+    }
+    meta_json.write_text(json.dumps(meta, indent=2))
+    return meta
+
+
+def process_scalar(grib_path: Path, layer_key: str, run: dt.datetime, fstep: int,
+                   out_dir: Path = OUTPUT_DIR) -> dict:
+    """Proses satu file GRIB skalar (mis. hujan) -> PNG heatmap berwarna + metadata."""
+    layer = LAYERS[layer_key]
+    values, grid = _load_scalar(grib_path, layer.get("filter_keys"))
+    values = values * float(layer.get("to_unit", 1.0))   # ke satuan tampilan (mm/jam)
+
+    valid_time = run + dt.timedelta(hours=fstep)
+    base = f"{layer_key}_{run:%Y%m%d_%H}_f{fstep:03d}"
+    preview_png = out_dir / f"{base}_preview.png"
+    meta_json = out_dir / f"{base}.json"
+
+    scale = _SCALAR_SCALES.get(layer_key, _RAIN_SCALE)
+    _render_scalar_preview(values, scale, preview_png)
+
+    meta = {
+        "layer": layer_key,
+        "kind": "scalar",
+        "model": "GFS",
+        "level": layer["level_label"],
+        "run_time": run.strftime("%Y-%m-%dT%H:00:00Z"),
+        "forecast_step_hours": fstep,
+        "valid_time": valid_time.strftime("%Y-%m-%dT%H:00:00Z"),
+        "bounds": [grid["west"], grid["south"], grid["east"], grid["north"]],
+        "width": grid["width"],
+        "height": grid["height"],
+        "units": layer["units"],
+        "preview_image": preview_png.name,
+        "value_max": round(float(np.nanmax(values)), 2),
     }
     meta_json.write_text(json.dumps(meta, indent=2))
     return meta

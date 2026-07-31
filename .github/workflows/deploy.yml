@@ -6,7 +6,8 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "15 */6 * * *"
+    # 04:00 WIB = 21:00 UTC (hari sebelumnya). Sekali sehari.
+    - cron: "0 21 * * *"
   workflow_dispatch:
 
 permissions:
@@ -35,6 +36,12 @@ jobs:
 
       - name: Install Python deps
         run: pip install -r requirements.txt
+
+      - name: Hydrate window from live site (retensi -24 jam)
+        working-directory: backend/pipeline
+        env:
+          SITE_DATA_URL: https://bungakertas-py.github.io/bungakertas-signature/backend/data/output
+        run: python hydrate.py || true
 
       - name: Run pipeline (unduh GFS + generate output)
         working-directory: backend/pipeline

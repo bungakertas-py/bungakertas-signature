@@ -1,14 +1,23 @@
-/* Peta Cuaca — frontend Fase 1 (angin permukaan, GFS)
- * Membaca catalog.json + JSON velocity dari pipeline backend,
- * menampilkan animasi partikel angin ala BMKG Signature.
+/* Peta Cuaca — frontend (angin + hujan, GFS)
+ * Membaca catalog.json + aset dari pipeline backend; angin = partikel + heatmap
+ * kecepatan, hujan = heatmap laju hujan. Layout & gaya ala BMKG Signature.
  */
 const DATA_BASE = "../backend/data/output/";
 
-// Skala warna knots (selaras dengan legend & pipeline)
-const KNOTS_COLORS = [
-  "#003050", "#2b83ba", "#5aa8cf", "#abdda4", "#66bd63",
-  "#d9ef8b", "#fee08b", "#fdae61", "#f46d43", "#d73027", "#a50026", "#7a0077",
-];
+// Definisi legend per layer: [label, warna, teksPutih?]
+const LEGENDS = {
+  wind_surface: {
+    head: "KNOTS",
+    cells: [["5", "#2b83ba", 1], ["10", "#5aa8cf", 0], ["15", "#abdda4", 0], ["20", "#66bd63", 0],
+            ["25", "#d9ef8b", 0], ["34", "#fee08b", 0], ["48", "#fdae61", 0], ["64", "#f46d43", 1],
+            ["80", "#d73027", 1], ["100+", "#a50026", 1]],
+  },
+  rain_surface: {
+    head: "mm/jam",
+    cells: [["0.5", "#5ba3e0", 1], ["1", "#2b6cc4", 1], ["2", "#35a85a", 1], ["5", "#9cd63f", 0],
+            ["10", "#f2d03a", 0], ["20", "#f28a1f", 0], ["50", "#e0372a", 1], ["100+", "#9c278f", 1]],
+  },
+};
 
 // ---- Peta dasar (gelap, ala screenshot) --------------------------------
 const map = L.map("map", {
@@ -64,10 +73,12 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.p
 let frames = [];
 let current = 0;
 let velocityLayer = null;
-let speedLayer = null;      // heatmap kecepatan (imageOverlay preview PNG)
+let speedLayer = null;      // heatmap (imageOverlay preview PNG) — dipakai kedua layer
 let dataBounds = null;      // L.latLngBounds domain data penuh (untuk overlay)
 let playing = false;
 let playTimer = null;
+let activeLayer = "wind_surface";
+let catalog = null;
 const dataCache = new Map();
 
 const $ = (id) => document.getElementById(id);
@@ -81,6 +92,18 @@ function fmtValid(iso) {
   // "2026-07-31T00:00:00Z" -> "Jum, 31 Jul 07:00 WIB"
   const opt = { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" };
   return toWIB(iso).toLocaleString("id-ID", opt).replace(/\./g, ":") + " WIB";
+}
+
+// Frame terdekat ke waktu "sekarang" (untuk posisi awal slider, karena window
+// bisa memuat masa lalu -24 jam).
+function nearestNowIndex() {
+  const now = Date.now();
+  let best = 0, bestDiff = Infinity;
+  frames.forEach((f, i) => {
+    const d = Math.abs(new Date(f.valid_time).getTime() - now);
+    if (d < bestDiff) { bestDiff = d; best = i; }
+  });
+  return best;
 }
 
 // Label tanggal/jam (WIB) di bawah slider: tanggal ditandai tebal saat harinya
@@ -146,54 +169,67 @@ async function loadFrameData(frame) {
   return data;
 }
 
+function renderLegend(layerKey) {
+  const def = LEGENDS[layerKey];
+  const head = $("legend-head"), cells = $("legend-cells");
+  if (!def || !head || !cells) return;
+  head.textContent = def.head;
+  cells.innerHTML = def.cells.map(([label, bg, dark]) =>
+    `<div class="legend-cell${dark ? " dark" : ""}" style="background:${bg}">${label}</div>`).join("");
+}
+
+function setActiveLayer(layerKey) {
+  if (!catalog || !catalog.layers[layerKey] || layerKey === activeLayer) return;
+  activeLayer = layerKey;
+  frames = catalog.layers[layerKey].frames;
+  document.querySelectorAll(".layer-btn[data-layer]").forEach((b) =>
+    b.classList.toggle("active", b.dataset.layer === layerKey));
+  renderLegend(layerKey);
+  buildTicks();
+  const slider = $("time-slider");
+  if (slider) slider.max = String(frames.length - 1);
+  if (current >= frames.length) current = 0;
+  showFrame(current);
+}
+
 async function showFrame(i) {
   current = (i + frames.length) % frames.length;
   const frame = frames[current];
-  const data = await loadFrameData(frame);
 
-  // --- Kontur warna kecepatan (heatmap ala BMKG) di bawah partikel ----------
-  const speedUrl = DATA_BASE + frame.preview_image;
+  // Heatmap (kedua layer punya preview_image): angin = kecepatan, hujan = laju hujan.
+  const url = DATA_BASE + frame.preview_image;
   if (!speedLayer) {
-    speedLayer = L.imageOverlay(speedUrl, dataBounds, {
-      pane: "speed",
-      opacity: 0.92,
-      interactive: false,
-    });
+    speedLayer = L.imageOverlay(url, dataBounds, { pane: "speed", opacity: 0.92, interactive: false });
     speedLayer.addTo(map);
   } else {
-    speedLayer.setUrl(speedUrl);
+    speedLayer.setUrl(url);
   }
 
-  // --- Partikel angin: garis PUTIH di atas heatmap --------------------------
-  if (!velocityLayer) {
-    velocityLayer = L.velocityLayer({
-      displayValues: false,
-      displayOptions: {
-        velocityType: "Angin",
-        position: "bottomleft",
-        emptyString: "Tidak ada data",
-        angleConvention: "bearingCW",
-        speedUnit: "kt",
-        directionString: "Arah",
-        speedString: "Kecepatan",
-      },
-      data,
-      minVelocity: 0,
-      maxVelocity: 25,          // m/s (~48 kt) rentang skala warna
-      velocityScale: 0.012,
-      particleAge: 90,
-      particleMultiplier: 1 / 260,
-      lineWidth: 1.1,
-      colorScale: ["#ffffff"], // vektor angin putih (warna kecepatan di heatmap)
-      frameRate: 24,
-    });
-    velocityLayer.addTo(map);
-  } else {
-    velocityLayer.setData(data);
+  // Partikel angin PUTIH — hanya untuk layer angin; layer hujan tanpa partikel.
+  if (activeLayer === "wind_surface" && frame.velocity_json) {
+    const data = await loadFrameData(frame);
+    if (!velocityLayer) {
+      velocityLayer = L.velocityLayer({
+        displayValues: false,
+        displayOptions: {
+          velocityType: "Angin", position: "bottomleft", emptyString: "Tidak ada data",
+          angleConvention: "bearingCW", speedUnit: "kt", directionString: "Arah", speedString: "Kecepatan",
+        },
+        data,
+        minVelocity: 0, maxVelocity: 25, velocityScale: 0.012,
+        particleAge: 90, particleMultiplier: 1 / 260, lineWidth: 1.1,
+        colorScale: ["#ffffff"], frameRate: 24,
+      });
+      velocityLayer.addTo(map);
+    } else {
+      if (!map.hasLayer(velocityLayer)) velocityLayer.addTo(map);
+      velocityLayer.setData(data);
+    }
+  } else if (velocityLayer && map.hasLayer(velocityLayer)) {
+    map.removeLayer(velocityLayer);
   }
 
   const vt = $("valid-time"); if (vt) vt.textContent = fmtValid(frame.valid_time);
-  const ri = $("run-info"); if (ri) ri.textContent = `+${frame.forecast_step_hours} jam · maks ${frame.speed_knots_max} kt`;
   const ts = $("time-slider"); if (ts) ts.value = String(current);
 }
 
@@ -225,13 +261,28 @@ async function init() {
     const catRes = await fetch(DATA_BASE + "catalog.json");
     if (!catRes.ok) throw new Error(`catalog.json HTTP ${catRes.status} (${DATA_BASE}catalog.json)`);
     const cat = await catRes.json();
-    const wind = cat.layers["wind_surface"];
-    if (!wind) throw new Error("layer 'wind_surface' tidak ada di catalog.json");
-    frames = wind.frames;
+    catalog = cat;
+    const avail = Object.keys(cat.layers || {});
+    if (!avail.length) throw new Error("catalog.json tidak punya layer");
+    activeLayer = cat.layers["wind_surface"] ? "wind_surface" : avail[0];
+    frames = cat.layers[activeLayer].frames;
 
-    // Domain data penuh (untuk imageOverlay heatmap kecepatan).
+    // Domain data penuh (untuk imageOverlay heatmap).
     const [dw, ds, de, dn] = cat.region.bounds;
     dataBounds = L.latLngBounds([ds, dw], [dn, de]);
+
+    // Wire tombol layer: aktif kalau datanya ada di catalog, disabled kalau belum.
+    document.querySelectorAll(".layer-btn[data-layer]").forEach((btn) => {
+      const key = btn.dataset.layer;
+      if (cat.layers[key]) {
+        btn.classList.remove("disabled");
+        btn.addEventListener("click", () => { if (playing) togglePlay(); setActiveLayer(key); });
+      } else {
+        btn.classList.add("disabled");
+      }
+      btn.classList.toggle("active", key === activeLayer);
+    });
+    renderLegend(activeLayer);
 
     // Bingkai tampilan = kotak inti (VIEW_CORE) yang diperlebar pada sumbu yang
     // perlu hingga RASIONYA sama dengan jendela desktop. Efeknya: seluruh wilayah
@@ -286,7 +337,8 @@ async function init() {
 
     const runEl = $("run-info");
     if (runEl) runEl.title = "Run model: " + cat.run_time;
-    await showFrame(0);
+    current = nearestNowIndex();       // mulai di frame terdekat "sekarang"
+    await showFrame(current);
     $("loading").style.display = "none";
   } catch (err) {
     $("loading").textContent = "Gagal memuat data: " + err.message;

@@ -43,7 +43,7 @@
             <button class="layer-btn active" data-layer="wind_surface">
               <span class="material-symbols-outlined">air</span> Angin
             </button>
-            <button class="layer-btn disabled" title="Fase berikutnya"><span class="material-symbols-outlined">rainy</span> Hujan</button>
+            <button class="layer-btn" data-layer="rain_surface"><span class="material-symbols-outlined">rainy</span> Hujan</button>
             <button class="layer-btn disabled" title="Fase berikutnya"><span class="material-symbols-outlined">thermostat</span> Suhu</button>
             <button class="layer-btn disabled" title="Fase berikutnya"><span class="material-symbols-outlined">humidity_percentage</span> Kelembapan</button>
             <button class="layer-btn disabled" title="Fase berikutnya"><span class="material-symbols-outlined">cloud</span> Tutupan Awan</button>
@@ -105,19 +105,8 @@
 
         <!-- legenda — bawah kanan -->
         <div class="legend-panel">
-          <div class="legend-head mono">KNOTS</div>
-          <div class="legend">
-            <div class="legend-cell dark" style="background:#2b83ba">5</div>
-            <div class="legend-cell" style="background:#5aa8cf">10</div>
-            <div class="legend-cell" style="background:#abdda4">15</div>
-            <div class="legend-cell" style="background:#66bd63">20</div>
-            <div class="legend-cell" style="background:#d9ef8b">25</div>
-            <div class="legend-cell" style="background:#fee08b">34</div>
-            <div class="legend-cell" style="background:#fdae61">48</div>
-            <div class="legend-cell dark" style="background:#f46d43">64</div>
-            <div class="legend-cell dark" style="background:#d73027">80</div>
-            <div class="legend-cell dark" style="background:#a50026">100+</div>
-          </div>
+          <div class="legend-head mono" id="legend-head">KNOTS</div>
+          <div class="legend" id="legend-cells"></div>
         </div>
       </div>
     </div>

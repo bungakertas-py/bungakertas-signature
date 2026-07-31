@@ -49,7 +49,24 @@ LAYERS = {
         # rentang encoding (m/s) untuk mengemas nilai ke 0..255 di PNG
         "unscale": [-40.0, 40.0],
     },
+    "rain_surface": {
+        "kind": "scalar",           # satu variabel -> heatmap PNG (tanpa partikel)
+        "var": "PRATE",             # laju presipitasi permukaan (kg m-2 s-1)
+        "grib_level": "surface",
+        "level_label": "surface",
+        "to_unit": 3600.0,          # kg m-2 s-1 -> mm/jam
+        "units": "mm/jam",
+        # PRATE punya 2 stepType (instant & avg) di f003+; ambil laju SESAAT.
+        "filter_keys": {"stepType": "instant"},
+    },
 }
+
+# ---------------------------------------------------------------------------
+# Retensi data: tiap run disimpan frame dari (run_time - KEEP_PAST_HOURS) sampai
+# ujung forecast (+72 jam). Frame lebih tua dari batas itu dihapus otomatis,
+# sehingga window bergeser tiap hari (-24 jam belakang ... +72 jam depan).
+# ---------------------------------------------------------------------------
+KEEP_PAST_HOURS = 24
 
 # ---------------------------------------------------------------------------
 # Path output. Data ditulis sebagai file statis (PNG + JSON) yang nanti
