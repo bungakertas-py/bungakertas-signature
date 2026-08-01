@@ -42,6 +42,21 @@ def _category(wind_kt: float) -> tuple[int, str]:
     return -2, "Depresi Tropis"
 
 
+# Tingkatan ala BMKG (dari kuat ke lemah). tier → (rank, warna dipilih frontend).
+_TIER_RANK = {"TC": 2, "SEED": 1, "CIRC": 0}
+
+
+def _classify(wind_kt: float, lat: float, vt: float) -> tuple[str, int, str]:
+    """Tentukan TINGKAT + kode + label awam dari kecepatan, lintang, & kekuatan putaran.
+    TC (Siklon Tropis) butuh lintang ≥5°, angin ≥34 kt, DAN putaran kuat (vt≥7)."""
+    if abs(lat) >= 5 and wind_kt >= 34 and vt >= 7.0:
+        code, cat_label = _category(wind_kt)
+        return "TC", code, f"Siklon Tropis · {cat_label}"
+    if abs(lat) >= 5 and wind_kt >= 25:
+        return "SEED", -3, "Bibit Siklon Tropis"
+    return "CIRC", -4, "Sirkulasi Siklonik"
+
+
 def _ring_tangential(U, V, i, j, dx, lat):
     """Uji sirkulasi: ambil angin di cincin ~2° sekeliling pusat, ukur komponen
     TANGENSIAL siklonik. Kembalikan (rata2 Vt m/s, fraksi titik yang memutar benar).
@@ -95,8 +110,7 @@ def _detect_frame(P, U, V, grid, min_wind_kt):
             continue
         lat = north - i * dy
         lon = west + j * dx
-        # TC sejati tak terbentuk < ~5° dari ekuator (Coriolis ~0).
-        if abs(lat) < 5 or abs(lat) > 30:
+        if abs(lat) < 2 or abs(lat) > 30:
             continue
         i0, i1 = max(0, i - rad), min(ny, i + rad + 1)
         j0, j1 = max(0, j - rad), min(nx, j + rad + 1)
@@ -104,17 +118,19 @@ def _detect_frame(P, U, V, grid, min_wind_kt):
         if not np.isfinite(wmax) or wmax < min_wind_kt:
             continue
         ring = P[max(0, i - rr):i + rr + 1, max(0, j - rr):j + rr + 1]
-        if P[i, j] > float(np.nanmean(ring)) - 2.0:   # bukan low tertutup
+        if P[i, j] > float(np.nanmean(ring)) - 1.0:   # bukan low tertutup
             continue
-        # SIRKULASI: angin harus BERPUTAR mengelilingi pusat (bukan sekadar kencang
-        # searah). Uji komponen tangensial siklonik di cincin sekitarnya.
+        # SIRKULASI WAJIB: angin harus BERPUTAR mengelilingi pusat (bukan angin
+        # kencang searah spt celah gunung). Dekat ekuator dibuat lebih ketat.
         vt_mean, cyc_frac = _ring_tangential(U, V, i, j, dx, lat)
-        if vt_mean < MIN_VT_MS or cyc_frac < 0.70:
+        near_eq = abs(lat) < 5
+        # dekat ekuator: andalkan frac tinggi (mayoritas titik berputar), bukan vt besar.
+        if cyc_frac < (0.75 if near_eq else 0.66) or vt_mean < (3.0 if near_eq else 2.5):
             continue
-        code, label = _category(wmax)
+        tier, code, label = _classify(wmax, lat, vt_mean)
         cands.append({"lat": round(lat, 3), "lon": round(lon, 3),
                       "mslp": round(float(P[i, j]), 1), "wind_kt": int(round(wmax)),
-                      "cat": code, "label": label})
+                      "cat": code, "label": label, "tier": tier})
 
     # dedup: gabung pusat berdekatan (<1.5°), pilih tekanan terendah
     cands.sort(key=lambda c: c["mslp"])
@@ -132,7 +148,7 @@ def _dist_deg(a, b):
     return (dlat * dlat + dlon * dlon) ** 0.5
 
 
-def detect_and_track(series: dict, times: list, grid: dict, min_wind_kt: float = 34.0) -> dict:
+def detect_and_track(series: dict, times: list, grid: dict, min_wind_kt: float = 20.0) -> dict:
     """series = {'pressure':[arr..], 'u':[arr..], 'v':[arr..]} sejajar `times`.
     Kembalikan {'tracks':[{id,name,peak_*,points:[{t,lat,lon,mslp,wind_kt,cat,label}]}]}."""
     P, U, V = series.get("pressure"), series.get("u"), series.get("v")
@@ -148,12 +164,15 @@ def detect_and_track(series: dict, times: list, grid: dict, min_wind_kt: float =
             d["t"] = times[t]
         per_time.append(dets)
 
-    MAX_STEP_DEG = 3.5   # perpindahan maks antar langkah (~350 km)
+    MAX_STEP_DEG = 3.5   # perpindahan maks per langkah (~350 km); jembatani 1 langkah hilang
     tracks = []          # {points, _last, _last_t}
     for t in range(nt):
         used = set()
-        for tr in [x for x in tracks if x["_last_t"] == t - 1]:
-            best, bestd = None, MAX_STEP_DEG
+        # track aktif = terakhir terlihat 1–2 langkah lalu (bridging gap 1 langkah);
+        # yang lebih baru diprioritaskan agar tak "dicuri" track basi.
+        for tr in sorted([x for x in tracks if t - 2 <= x["_last_t"] < t], key=lambda x: -x["_last_t"]):
+            gap = t - tr["_last_t"]
+            best, bestd = None, MAX_STEP_DEG * gap
             for k, d in enumerate(per_time[t]):
                 if k in used:
                     continue
@@ -168,16 +187,35 @@ def detect_and_track(series: dict, times: list, grid: dict, min_wind_kt: float =
             if k not in used:
                 tracks.append({"points": [d], "_last": d, "_last_t": t})
 
+    # peringkat track: tingkat tertinggi & angin puncak dulu
+    def _rank(tr):
+        return max((_TIER_RANK[p["tier"]], p["wind_kt"]) for p in tr["points"])
+    tracks.sort(key=_rank, reverse=True)
+
+    # Ambang tampil per tingkat: makin lemah, makin wajib PERSISTEN (kurangi noise
+    # low monsun global). MIN_LEN = langkah minimum, MIN_PEAK = angin puncak minimum.
+    MIN_LEN = {"TC": 1, "SEED": 3, "CIRC": 4}
+    MIN_PEAK = {"TC": 34, "SEED": 30, "CIRC": 22}
+    MAX_TRACKS = 12
+
     out = []
-    ranked = sorted(tracks, key=lambda x: -max(p["wind_kt"] for p in x["points"]))
-    for idx, tr in enumerate(ranked):
+    counters = {"TC": 0, "SEED": 0, "CIRC": 0}
+    names = {"TC": "Siklon Tropis", "SEED": "Bibit Siklon", "CIRC": "Sirkulasi Siklonik"}
+    for tr in tracks:
         pts = [{"t": p["t"], "lat": p["lat"], "lon": p["lon"], "mslp": p["mslp"],
-                "wind_kt": p["wind_kt"], "cat": p["cat"], "label": p["label"]} for p in tr["points"]]
-        peak = max(tr["points"], key=lambda p: p["wind_kt"])
-        # buang track sekejap yang lemah (kurangi kedip false-alarm)
-        if len(pts) == 1 and peak["wind_kt"] < 40:
+                "wind_kt": p["wind_kt"], "cat": p["cat"], "label": p["label"], "tier": p["tier"]}
+               for p in tr["points"]]
+        peak = max(tr["points"], key=lambda p: (_TIER_RANK[p["tier"]], p["wind_kt"]))
+        tier = peak["tier"]
+        if len(pts) < MIN_LEN[tier] or peak["wind_kt"] < MIN_PEAK[tier]:
             continue
-        out.append({"id": len(out), "name": f"Siklon {len(out) + 1}",
+        if tier == "TC" and len(pts) == 1 and peak["wind_kt"] < 40:
+            continue
+        counters[tier] += 1
+        out.append({"id": len(out), "tier": tier,
+                    "name": f"{names[tier]} {counters[tier]}",
                     "peak_wind_kt": peak["wind_kt"], "peak_cat": peak["cat"],
                     "peak_label": peak["label"], "points": pts})
+        if len(out) >= MAX_TRACKS:
+            break
     return {"tracks": out}

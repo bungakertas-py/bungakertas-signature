@@ -384,8 +384,10 @@ html, body {
   padding: 5px 10px 5px 8px; background: #e8342c; color: #fff;
   border: 2px solid var(--ink); box-shadow: 3px 3px 0 0 var(--ink);
   font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: .02em;
+  pointer-events: auto;
 }
 .fresh-ico { font-size: 15px; line-height: 1; }
+.fresh-chev { display: none; font-size: 15px; line-height: 1; }   /* kontrol tutup, HP saja */
 .toast {
   position: absolute; left: 50%; bottom: 96px; transform: translate(-50%, 12px);
   background: var(--ink); color: #fff; font-family: var(--font-ui); font-size: 13px; font-weight: 700;
@@ -402,13 +404,17 @@ html, body {
 @keyframes cyc-rot { to { transform: rotate(360deg); } }
 .cyc-note {
   position: absolute; top: 70px; left: 50%; transform: translate(-50%, -8px);
-  display: none; align-items: center; gap: 6px; max-width: 92vw; white-space: normal;
+  display: none; flex-direction: column; gap: 6px; max-width: 92vw;
   background: #e8342c; color: #fff; border: 2px solid var(--ink); box-shadow: var(--shadow-sm);
-  padding: 6px 12px; font-family: var(--font-ui); font-size: 11px; font-weight: 700;
+  padding: 7px 12px; font-family: var(--font-ui); font-size: 11px; font-weight: 700;
   line-height: 1.2; z-index: 1200; pointer-events: none;
 }
 .cyc-note.show { display: flex; }
-.cyc-note .material-symbols-outlined { font-size: 16px; flex: none; }
+.cyc-note-top { display: flex; align-items: center; gap: 6px; }
+.cyc-note-top .material-symbols-outlined { font-size: 16px; flex: none; }
+.cyc-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; padding-top: 5px; border-top: 1.5px solid rgba(255,255,255,.35); }
+.cyc-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; }
+.cyc-chip i { width: 11px; height: 11px; border: 1.5px solid var(--ink); flex: none; }
 @media (prefers-reduced-motion: reduce) { .cyc-spin { animation: none; } }
 
 /* Penanda "kamu di sini" (geolokasi) — badge bulat neubrutalist. */
@@ -523,6 +529,14 @@ html, body {
   .legend { overflow-x: auto; min-width: 0; }
   .legend-cell { width: 34px; min-height: 30px; font-size: 12px; }
   .cond-legend { right: 0; left: auto; }
+
+  /* Badge "Last update" di HP: mengambang di atas-kanan legenda, awalnya cukup
+     ikon "!" (hemat ruang). Tap → tampil teks + panah tutup; tap panah → ciut. */
+  .fresh-badge { cursor: pointer; gap: 0; padding: 6px 7px; }
+  .fresh-badge #fresh-text { display: none; }
+  .fresh-badge.open { gap: 6px; padding: 5px 6px 5px 8px; }
+  .fresh-badge.open #fresh-text { display: inline; }
+  .fresh-badge.open .fresh-chev { display: inline; }
 
   /* panel detail titik = full-screen */
   #point-panel { width: 100vw; max-width: 100vw; border-left: none; }

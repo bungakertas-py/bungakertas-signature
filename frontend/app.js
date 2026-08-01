@@ -1032,12 +1032,14 @@ async function loadCyclones() {
     .catch(() => (cyclones = { tracks: [] }));
   return cyclonesLoading;
 }
-// Warna ikut intensitas puncak (kategori): TS→oranye, topan→merah, kuat→ungu.
-function cycloneColor(cat) {
-  if (cat >= 3) return "#8a29c8";     // Kat 3+ ungu
-  if (cat >= 1) return "#e42320";     // Kat 1–2 merah
-  if (cat === 0) return "#f2701c";    // Badai tropis kuat oranye tua
-  return "#f5a91e";                   // Badai tropis kuning-oranye
+// Warna ikut TINGKAT: Siklon Tropis (merah→ungu ikut kategori), Bibit (oranye),
+// Sirkulasi (kuning). Membedakan sekaligus jadi kunci legenda identifikasi.
+function cycloneColor(tier, cat) {
+  if (tier === "CIRC") return "#eab308";   // Sirkulasi Siklonik — kuning
+  if (tier === "SEED") return "#f59f00";   // Bibit Siklon — oranye
+  if (cat >= 3) return "#7a1fa2";          // Siklon Tropis Kat 3+ — ungu
+  if (cat >= 1) return "#d61f1f";          // Kat 1–2 — merah
+  return "#e8450c";                        // Badai tropis — merah-oranye
 }
 function refreshCyclones() {
   if (!cycloneGroup) return;
@@ -1045,7 +1047,8 @@ function refreshCyclones() {
   if (!cyclonesOn || !cyclones || !frames[current]) return;
   const nowT = frames[current].valid_time;
   for (const tr of cyclones.tracks) {
-    const color = cycloneColor(tr.peak_cat);
+    const color = cycloneColor(tr.tier, tr.peak_cat);
+    const sz = tr.tier === "TC" ? 36 : tr.tier === "SEED" ? 30 : 26;
     const past = [], future = [];
     for (const p of tr.points) (p.t < nowT ? past : future).push([p.lat, p.lon]);
     if (past.length && future.length) future.unshift(past[past.length - 1]); // sambung
@@ -1063,8 +1066,8 @@ function refreshCyclones() {
       const m = L.marker([cur.lat, cur.lon], {
         pane: "cyclones", keyboard: false,
         title: `${tr.name} · ${cur.label} · ${cur.wind_kt} kt · ${cur.mslp} hPa`,
-        icon: L.divIcon({ className: "cyc-mark", iconSize: [36, 36], iconAnchor: [18, 18],
-          html: `<span class="cyc-spin" style="color:${color}"><span class="material-symbols-outlined">cyclone</span></span>` }),
+        icon: L.divIcon({ className: "cyc-mark", iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2],
+          html: `<span class="cyc-spin" style="color:${color};font-size:${sz - 4}px"><span class="material-symbols-outlined" style="font-size:${sz - 4}px">cyclone</span></span>` }),
       });
       m.on("click", (e) => { L.DomEvent.stopPropagation(e); openPoint(cur.lat, cur.lon, tr.name); });
       cycloneGroup.addLayer(m);
@@ -1267,6 +1270,8 @@ async function init() {
     $("pt-hide")?.addEventListener("click", hidePoint);
     $("pt-reopen")?.addEventListener("click", reopenPoint);
     $("share-btn")?.addEventListener("click", shareCurrent);
+    // Badge "Last update" (HP): tap ikon "!" → buka teks; tap lagi/panah → tutup.
+    $("data-fresh")?.addEventListener("click", () => $("data-fresh").classList.toggle("open"));
 
     // Pencarian kota/kabupaten
     const sbox = $("search-box"), sin = $("search-input");

@@ -128,10 +128,6 @@
       <div class="ui-bottom">
         <!-- timeline / slider — bawah kiri -->
         <div class="panel timeline">
-          <div id="data-fresh" class="fresh-badge" title="Waktu inisiasi model GFS terakhir">
-            <span class="material-symbols-outlined fresh-ico">error</span>
-            <span class="mono" id="fresh-text"></span>
-          </div>
           <div class="tl-btns">
             <button id="play-btn" class="tl-btn" title="Play/Pause"><span class="material-symbols-outlined" id="play-icon">play_arrow</span></button>
           </div>
@@ -144,6 +140,11 @@
 
         <!-- legenda — bawah kanan (legenda ikon kondisi di atas, muncul saat toggle) -->
         <div class="legend-col">
+          <div id="data-fresh" class="fresh-badge" title="Waktu inisiasi model GFS terakhir">
+            <span class="material-symbols-outlined fresh-ico">error</span>
+            <span class="mono" id="fresh-text"></span>
+            <span class="material-symbols-outlined fresh-chev">chevron_right</span>
+          </div>
           <div id="cond-legend" class="cond-legend"></div>
           <div class="legend-panel">
             <div class="legend-head mono" id="legend-head">KNOTS</div>
@@ -156,10 +157,17 @@
     <!-- Toast kecil (mis. "Link disalin") -->
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <!-- Catatan siklon (muncul saat toggle siklon aktif) -->
+    <!-- Catatan + legenda siklon (muncul saat toggle siklon aktif) -->
     <div id="cyc-note" class="cyc-note">
-      <span class="material-symbols-outlined">error</span>
-      <span>Indikasi siklon dari model GFS — bukan peringatan resmi BMKG/TCWC</span>
+      <div class="cyc-note-top">
+        <span class="material-symbols-outlined">error</span>
+        <span>Indikasi model GFS — bukan peringatan resmi BMKG/TCWC</span>
+      </div>
+      <div class="cyc-legend">
+        <span class="cyc-chip"><i style="background:#d61f1f"></i>Siklon Tropis</span>
+        <span class="cyc-chip"><i style="background:#f59f00"></i>Bibit Siklon</span>
+        <span class="cyc-chip"><i style="background:#eab308"></i>Sirkulasi Siklonik</span>
+      </div>
     </div>
 
     <!-- Skeleton loading — meniru layout UI biar transisi mulus saat refresh -->
