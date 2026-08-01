@@ -173,7 +173,7 @@ html, body {
 .cc-ico.cc-mini .material-symbols-outlined { font-size: 13px; }
 
 /* timeline / slider — bawah kiri; flex:1 → panjangnya otomatis dibatasi legenda di kanan */
-.timeline { flex: 1; min-width: 0; padding: 8px 14px; display: flex; align-items: center; gap: 14px; }
+.timeline { flex: 1; min-width: 0; padding: 8px 14px; display: flex; align-items: center; gap: 14px; position: relative; }
 .tl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .tl-cur { display: flex; justify-content: flex-end; align-items: center; gap: 8px; font-size: 11px; }
 .tl-cur .mono { font-weight: 700; }
@@ -374,6 +374,43 @@ html, body {
   display: block; width: 13px; height: 13px; background: var(--primary);
   border: 2px solid #fff; transform: rotate(45deg); box-shadow: 0 0 0 1.5px var(--ink);
 }
+/* Badge freshness di timeline + toast "Link disalin". */
+/* Badge "Last update" — mengambang di atas kontainer slider, rata kanan.
+   Merah neubrutalist (border ink + hard-shadow), ikon tanda seru. Absolute →
+   tak menambah tinggi panel timeline. */
+.fresh-badge {
+  position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 5;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 5px 10px 5px 8px; background: #e8342c; color: #fff;
+  border: 2px solid var(--ink); box-shadow: 3px 3px 0 0 var(--ink);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: .02em;
+}
+.fresh-ico { font-size: 15px; line-height: 1; }
+.toast {
+  position: absolute; left: 50%; bottom: 96px; transform: translate(-50%, 12px);
+  background: var(--ink); color: #fff; font-family: var(--font-ui); font-size: 13px; font-weight: 700;
+  padding: 10px 16px; border: var(--bw) solid var(--ink); box-shadow: var(--shadow-sm);
+  opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; z-index: 2000;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Siklon: ikon berputar di pusat pusaran + banner catatan indikasi. */
+.cyc-mark { display: grid; place-items: center; }
+.cyc-spin { display: grid; place-items: center; animation: cyc-rot 3s linear infinite;
+  filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 1px #fff); }
+.cyc-spin .material-symbols-outlined { font-size: 32px; font-variation-settings: "FILL" 1, "wght" 600; }
+@keyframes cyc-rot { to { transform: rotate(360deg); } }
+.cyc-note {
+  position: absolute; top: 70px; left: 50%; transform: translate(-50%, -8px);
+  display: none; align-items: center; gap: 6px; max-width: 92vw; white-space: normal;
+  background: #e8342c; color: #fff; border: 2px solid var(--ink); box-shadow: var(--shadow-sm);
+  padding: 6px 12px; font-family: var(--font-ui); font-size: 11px; font-weight: 700;
+  line-height: 1.2; z-index: 1200; pointer-events: none;
+}
+.cyc-note.show { display: flex; }
+.cyc-note .material-symbols-outlined { font-size: 16px; flex: none; }
+@media (prefers-reduced-motion: reduce) { .cyc-spin { animation: none; } }
+
 /* Penanda "kamu di sini" (geolokasi) — badge bulat neubrutalist. */
 .pm-me {
   display: grid; place-items: center; width: 32px; height: 32px;

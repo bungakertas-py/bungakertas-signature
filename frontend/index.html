@@ -4,7 +4,26 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Kertas Cuaca — From Sky to Data</title>
+  <meta name="description" content="Peta cuaca interaktif Indonesia: angin, hujan, suhu, kelembapan, awan, dan tekanan dari model GFS. Klik lokasimu untuk prakiraan detail per jam." />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#fcf8f8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Kertas Cuaca" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <!-- Open Graph / kartu preview saat link dibagikan -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Kertas Cuaca" />
+  <meta property="og:title" content="Kertas Cuaca — Peta cuaca interaktif Indonesia" />
+  <meta property="og:description" content="Angin, hujan, suhu, awan, dan tekanan untuk seluruh Indonesia. Klik lokasimu untuk prakiraan detail per jam." />
+  <meta property="og:url" content="https://bungakertas-py.github.io/bungakertas-signature/frontend/index.html" />
+  <meta property="og:image" content="https://bungakertas-py.github.io/bungakertas-signature/frontend/og-image.png" />
+  <meta property="og:image:width" content="2400" />
+  <meta property="og:image:height" content="1260" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Kertas Cuaca — Peta cuaca interaktif Indonesia" />
+  <meta name="twitter:description" content="Angin, hujan, suhu, awan, dan tekanan untuk seluruh Indonesia. Klik lokasimu untuk prakiraan detail per jam." />
+  <meta name="twitter:image" content="https://bungakertas-py.github.io/bungakertas-signature/frontend/og-image.png" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-velocity@1.7.0/dist/leaflet-velocity.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -93,6 +112,8 @@
           </div>
           <button id="geo-btn" class="icon-btn" title="Cuaca di lokasi saya"><span class="material-symbols-outlined">my_location</span></button>
           <button id="city-toggle" class="icon-btn" title="Ikon kondisi cuaca per kota (nyalakan/matikan)"><span class="material-symbols-outlined">partly_cloudy_day</span></button>
+          <button id="cyclone-toggle" class="icon-btn" title="Deteksi siklon + jalur prakiraan (indikasi model GFS)"><span class="material-symbols-outlined">cyclone</span></button>
+          <button id="share-btn" class="icon-btn" title="Bagikan tampilan ini"><span class="material-symbols-outlined">share</span></button>
           <div class="search-wrap">
             <button id="search-btn" class="icon-btn" title="Cari kota / kabupaten"><span class="material-symbols-outlined">search</span></button>
             <div id="search-box" class="search-box">
@@ -107,6 +128,10 @@
       <div class="ui-bottom">
         <!-- timeline / slider — bawah kiri -->
         <div class="panel timeline">
+          <div id="data-fresh" class="fresh-badge" title="Waktu inisiasi model GFS terakhir">
+            <span class="material-symbols-outlined fresh-ico">error</span>
+            <span class="mono" id="fresh-text"></span>
+          </div>
           <div class="tl-btns">
             <button id="play-btn" class="tl-btn" title="Play/Pause"><span class="material-symbols-outlined" id="play-icon">play_arrow</span></button>
           </div>
@@ -126,6 +151,15 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Toast kecil (mis. "Link disalin") -->
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- Catatan siklon (muncul saat toggle siklon aktif) -->
+    <div id="cyc-note" class="cyc-note">
+      <span class="material-symbols-outlined">error</span>
+      <span>Indikasi siklon dari model GFS — bukan peringatan resmi BMKG/TCWC</span>
     </div>
 
     <!-- Skeleton loading — meniru layout UI biar transisi mulus saat refresh -->

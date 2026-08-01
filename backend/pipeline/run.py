@@ -16,6 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from config import KEEP_PAST_HOURS, LAYERS, OUTPUT_DIR
+from cyclones import detect_and_track
 from download import download_grib, latest_available_run
 from process import (load_prate_mmhr, process_scalar, process_wind,
                      write_point_data, write_scalar_frame)
@@ -242,6 +243,13 @@ def main() -> None:
         series = {var: [d[s] for s in steps] for var, d in ctx["series"].items()}
         sz = write_point_data(series, times, ctx["grid"])
         print(f"\npoint_data.bin.gz: {sz/1e6:.1f} MB ({len(times)} waktu, {len(series)} var)")
+
+        # Deteksi & pelacakan siklon (indikasi GFS) -> cyclones.json
+        cyc = detect_and_track(series, times, ctx["grid"])
+        cyc["run_time"] = run.strftime("%Y-%m-%dT%H:00:00Z")
+        cyc["generated_at"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        (OUTPUT_DIR / "cyclones.json").write_text(json.dumps(cyc))
+        print(f"cyclones.json: {len(cyc['tracks'])} track siklon")
 
     catalog, total = reconcile_and_catalog(run)
     (OUTPUT_DIR / "catalog.json").write_text(json.dumps(catalog, indent=2))

@@ -52,7 +52,20 @@ jobs:
           mkdir -p _site/frontend _site/backend/data/output
           cp -r frontend/. _site/frontend/
           cp -r backend/data/output/. _site/backend/data/output/
-          printf '<!doctype html><meta http-equiv="refresh" content="0; url=./frontend/index.html">' > _site/index.html
+          cat > _site/index.html <<'HTML'
+          <!doctype html><meta charset="utf-8">
+          <title>Kertas Cuaca — Peta cuaca interaktif Indonesia</title>
+          <meta http-equiv="refresh" content="0; url=./frontend/index.html">
+          <meta property="og:type" content="website">
+          <meta property="og:site_name" content="Kertas Cuaca">
+          <meta property="og:title" content="Kertas Cuaca — Peta cuaca interaktif Indonesia">
+          <meta property="og:description" content="Angin, hujan, suhu, awan, dan tekanan untuk seluruh Indonesia. Klik lokasimu untuk prakiraan detail per jam.">
+          <meta property="og:url" content="https://bungakertas-py.github.io/bungakertas-signature/">
+          <meta property="og:image" content="https://bungakertas-py.github.io/bungakertas-signature/frontend/og-image.png">
+          <meta name="twitter:card" content="summary_large_image">
+          <meta name="twitter:image" content="https://bungakertas-py.github.io/bungakertas-signature/frontend/og-image.png">
+          <a href="./frontend/index.html">Buka Kertas Cuaca</a>
+          HTML
 
       - uses: actions/upload-pages-artifact@v3
         with:

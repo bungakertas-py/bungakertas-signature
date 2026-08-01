@@ -124,6 +124,12 @@ labelPane.style.pointerEvents = "none";
 // Pane ikon kondisi cuaca per kota — di atas label, TETAP bisa diklik.
 const cityPane = map.createPane("cityicons");
 cityPane.style.zIndex = 660;
+// Siklon: jalur (garis, non-interaktif) di bawah, ikon pusat (klik) di atas.
+const cyclonePathPane = map.createPane("cyclonepath");
+cyclonePathPane.style.zIndex = 655;
+cyclonePathPane.style.pointerEvents = "none";
+const cyclonePane = map.createPane("cyclones");
+cyclonePane.style.zIndex = 664;
 // Dua set label: GELAP (teks terang, utk tema gelap/angin) & TERANG (teks gelap,
 // utk tema terang/hujan). Ditukar oleh applyTheme() sesuai layer aktif.
 const _lblOpts = { subdomains: "abcd", pane: "labels", updateWhenZooming: false, keepBuffer: 4 };
@@ -145,6 +151,9 @@ let worldLayer = null, provLayer = null;   // layer batas (warna diatur per-tema
 const dataCache = new Map();
 let cityIconsOn = false;    // toggle layer ikon kondisi cuaca per kota
 let cityGroup = null;       // L.layerGroup penampung marker ikon kota
+let cyclonesOn = false;     // toggle deteksi siklon + jalur
+let cyclones = null, cyclonesLoading = null;
+let cycloneGroup = null;
 
 // Tema per-layer: angin = gelap (latar peta gelap), hujan = terang (latar putih).
 function applyTheme() {
@@ -296,6 +305,7 @@ function setActiveLayer(layerKey) {
   // panel titik ikut variabel aktif
   if (pointData && lastPoint && $("point-panel")?.classList.contains("open"))
     renderPoint(pointData, lastPoint.lat, lastPoint.lon);
+  updateHash();
 }
 
 async function showFrame(i) {
@@ -341,6 +351,8 @@ async function showFrame(i) {
   if (vt) vt.textContent = DAILY_LAYERS.has(activeLayer) ? fmtDay(frame.valid_time) : fmtValid(frame.valid_time);
   const ts = $("time-slider"); if (ts) ts.value = String(current);
   if (cityIconsOn) refreshCityIcons();   // ikon kondisi kota ikut waktu aktif
+  if (cyclonesOn) refreshCyclones();     // siklon + jalur ikut waktu aktif
+  updateHash();
 }
 
 function togglePlay() {
@@ -357,6 +369,7 @@ function togglePlay() {
 let pointData = null;      // { meta, vars: {name:{arr,scale,offset}} }
 let pointLoading = null;
 let pointMarker = null;
+let sharedPoint = null;    // {lat,lon,name} titik aktif → dipakai untuk link Bagikan
 let lastPoint = null;      // untuk export CSV
 const MS_TO_KT = 1.943844;
 const DIRS = ["U", "TL", "T", "TG", "S", "BD", "B", "BL"]; // 8 arah dari Utara searah jarum jam
@@ -456,6 +469,7 @@ async function fillAddress(lat, lon) {
     const addr = await reverseGeocode(lat, lon);
     if (pointToken !== token) return;
     setPointLabel(addr || fmtCoord(lat, lon), addr ? "addr" : "coord");
+    if (sharedPoint && addr) { sharedPoint.name = addr; updateHash(); }
   } catch (_) {
     if (pointToken !== token) return;
     setPointLabel(fmtCoord(lat, lon), "coord");
@@ -599,6 +613,8 @@ async function openPoint(lat, lon, label, isMe) {
     interactive: false, pane: "labels",
   }).addTo(map);
   setPointLabel(label || fmtCoord(lat, lon), label ? "addr" : "coord");
+  sharedPoint = { lat, lon, name: label || null };
+  updateHash();
   const body = $("pt-body"); if (body) body.innerHTML = pointSkeleton();
   try {
     renderPoint(await loadPointData(), lat, lon);
@@ -767,6 +783,8 @@ function closePoint() {
   $("point-panel")?.classList.remove("open", "hidden");
   $("pt-reopen")?.classList.remove("show");
   if (pointMarker) { map.removeLayer(pointMarker); pointMarker = null; }
+  sharedPoint = null;
+  updateHash();
 }
 function hidePoint() {           // sembunyikan panel, marker & data tetap
   $("point-panel")?.classList.add("hidden");
@@ -775,6 +793,76 @@ function hidePoint() {           // sembunyikan panel, marker & data tetap
 function reopenPoint() {
   $("point-panel")?.classList.remove("hidden");
   $("pt-reopen")?.classList.remove("show");
+}
+
+// ================= FRESHNESS · SHARE · TOAST =================
+// Waktu inisiasi model (run_time GFS) dalam WIB — jam & tanggal. Kredibilitas:
+// user tahu kapan data terakhir diperbarui.
+const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+function updateFreshness() {
+  const el = $("fresh-text"); if (!el || !catalog?.run_time) return;
+  const w = toWIB(catalog.run_time);
+  const hh = String(w.getUTCHours()).padStart(2, "0");
+  const mm = String(w.getUTCMinutes()).padStart(2, "0");
+  el.textContent = `Last update : ${hh}:${mm} WIB, ${w.getUTCDate()} ${MONTHS_ID[w.getUTCMonth()]} ${w.getUTCFullYear()}`;
+}
+
+let toastTimer = null;
+function toast(msg) {
+  const el = $("toast"); if (!el) return;
+  el.textContent = msg; el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+// Hash saat halaman dibuka (sebelum showFrame/updateHash menimpanya) — sumber
+// kebenaran untuk restore link yang dibagikan.
+const INITIAL_HASH = location.hash;
+
+// URL-hash state: layer + waktu (valid_time) + titik → link bisa dibagikan &
+// kebuka persis. replaceState supaya tak menumpuk riwayat / memicu navigasi.
+function updateHash() {
+  if (!activeLayer) return;
+  const p = new URLSearchParams();
+  p.set("l", activeLayer);
+  const f = frames && frames[current];
+  if (f?.valid_time) p.set("t", f.valid_time);
+  if (sharedPoint) {
+    p.set("p", sharedPoint.lat.toFixed(4) + "," + sharedPoint.lon.toFixed(4));
+    if (sharedPoint.name) p.set("n", sharedPoint.name);
+  }
+  if (cyclonesOn) p.set("c", "1");
+  history.replaceState(null, "", location.pathname + location.search + "#" + p.toString());
+}
+function restoreFromHash() {
+  const h = INITIAL_HASH.replace(/^#/, ""); if (!h || !catalog) return;
+  const p = new URLSearchParams(h);
+  const l = p.get("l");
+  if (l && catalog.layers[l] && l !== activeLayer) setActiveLayer(l);
+  const t = p.get("t");
+  if (t && frames) {
+    const idx = frames.findIndex((f) => f.valid_time === t);
+    if (idx >= 0) { current = idx; showFrame(current); }
+  }
+  if (p.get("c") === "1" && !cyclonesOn) toggleCyclones();
+  const pt = p.get("p");
+  if (pt) {
+    const [la, lo] = pt.split(",").map(parseFloat);
+    if (isFinite(la) && isFinite(lo) && (!dataBounds || dataBounds.contains([la, lo]))) {
+      map.setView([la, lo], 8, { animate: false });
+      openPoint(la, lo, p.get("n") || null);
+    }
+  }
+}
+async function shareCurrent() {
+  updateHash();
+  const url = location.href;
+  const data = { title: "Kertas Cuaca", text: "Lihat cuaca di Kertas Cuaca", url };
+  try {
+    if (navigator.share) { await navigator.share(data); return; }
+    await navigator.clipboard.writeText(url);
+    toast("Link disalin ke clipboard");
+  } catch (_) { /* user batal atau clipboard diblokir */ }
 }
 
 // ================= SEARCH KOTA/KABUPATEN =================
@@ -935,6 +1023,70 @@ function toggleCityIcons() {
   }
 }
 
+// ================= SIKLON (indikasi model GFS) =================
+async function loadCyclones() {
+  if (cyclones) return cyclones;
+  if (!cyclonesLoading) cyclonesLoading = fetch(DATA_BASE + "cyclones.json")
+    .then((r) => (r.ok ? r.json() : { tracks: [] }))
+    .then((j) => (cyclones = j))
+    .catch(() => (cyclones = { tracks: [] }));
+  return cyclonesLoading;
+}
+// Warna ikut intensitas puncak (kategori): TS→oranye, topan→merah, kuat→ungu.
+function cycloneColor(cat) {
+  if (cat >= 3) return "#8a29c8";     // Kat 3+ ungu
+  if (cat >= 1) return "#e42320";     // Kat 1–2 merah
+  if (cat === 0) return "#f2701c";    // Badai tropis kuat oranye tua
+  return "#f5a91e";                   // Badai tropis kuning-oranye
+}
+function refreshCyclones() {
+  if (!cycloneGroup) return;
+  cycloneGroup.clearLayers();
+  if (!cyclonesOn || !cyclones || !frames[current]) return;
+  const nowT = frames[current].valid_time;
+  for (const tr of cyclones.tracks) {
+    const color = cycloneColor(tr.peak_cat);
+    const past = [], future = [];
+    for (const p of tr.points) (p.t < nowT ? past : future).push([p.lat, p.lon]);
+    if (past.length && future.length) future.unshift(past[past.length - 1]); // sambung
+    if (past.length > 1)
+      L.polyline(past, { pane: "cyclonepath", color, weight: 2, opacity: 0.3, dashArray: "3 5", interactive: false }).addTo(cycloneGroup);
+    if (future.length > 1)
+      L.polyline(future, { pane: "cyclonepath", color, weight: 3, opacity: 0.9, interactive: false }).addTo(cycloneGroup);
+    for (const p of tr.points) {
+      if (p.t < nowT) continue;       // titik prakiraan ke depan
+      L.circleMarker([p.lat, p.lon], { pane: "cyclonepath", radius: 2.5, weight: 0,
+        fillColor: color, fillOpacity: 0.9, interactive: false }).addTo(cycloneGroup);
+    }
+    const cur = tr.points.find((p) => p.t === nowT);
+    if (cur) {
+      const m = L.marker([cur.lat, cur.lon], {
+        pane: "cyclones", keyboard: false,
+        title: `${tr.name} · ${cur.label} · ${cur.wind_kt} kt · ${cur.mslp} hPa`,
+        icon: L.divIcon({ className: "cyc-mark", iconSize: [36, 36], iconAnchor: [18, 18],
+          html: `<span class="cyc-spin" style="color:${color}"><span class="material-symbols-outlined">cyclone</span></span>` }),
+      });
+      m.on("click", (e) => { L.DomEvent.stopPropagation(e); openPoint(cur.lat, cur.lon, tr.name); });
+      cycloneGroup.addLayer(m);
+    }
+  }
+}
+function toggleCyclones() {
+  cyclonesOn = !cyclonesOn;
+  $("cyclone-toggle") && $("cyclone-toggle").classList.toggle("active", cyclonesOn);
+  const note = $("cyc-note");
+  if (cyclonesOn) {
+    if (!cycloneGroup) cycloneGroup = L.layerGroup([], { pane: "cyclones" });
+    cycloneGroup.addTo(map);
+    if (note) note.classList.add("show");
+    loadCyclones().then(() => { if (cyclonesOn) refreshCyclones(); });
+  } else {
+    if (cycloneGroup) { cycloneGroup.clearLayers(); map.removeLayer(cycloneGroup); }
+    if (note) note.classList.remove("show");
+  }
+  updateHash();
+}
+
 // ---- Skeleton loading ---------------------------------------------------
 function hideSkeleton() {
   const s = $("skeleton");
@@ -1083,6 +1235,7 @@ async function init() {
 
     // Toggle ikon kondisi cuaca per kota + hitung ulang declutter tiap pindah/zoom
     $("city-toggle")?.addEventListener("click", toggleCityIcons);
+    $("cyclone-toggle")?.addEventListener("click", toggleCyclones);
     map.on("moveend", () => { if (cityIconsOn) refreshCityIcons(); });
 
     // "Cuaca lokasi saya" — geolokasi browser → buka detail di titik pengguna
@@ -1113,6 +1266,7 @@ async function init() {
     $("pt-export")?.addEventListener("click", exportCSV);
     $("pt-hide")?.addEventListener("click", hidePoint);
     $("pt-reopen")?.addEventListener("click", reopenPoint);
+    $("share-btn")?.addEventListener("click", shareCurrent);
 
     // Pencarian kota/kabupaten
     const sbox = $("search-box"), sin = $("search-input");
@@ -1139,6 +1293,8 @@ async function init() {
     if (runEl) runEl.title = "Run model: " + cat.run_time;
     current = nearestNowIndex();       // mulai di frame terdekat "sekarang"
     await showFrame(current);
+    restoreFromHash();                 // pulihkan layer/waktu/titik dari link dibagikan
+    updateFreshness();
     await whenHeatmapReady();          // reveal setelah frame pertama tergambar
     hideSkeleton();
   } catch (err) {
@@ -1148,3 +1304,9 @@ async function init() {
 }
 
 init();
+
+// PWA: daftarkan service worker (cache shell berversi; data cuaca tetap online).
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () =>
+    navigator.serviceWorker.register("sw.js").catch((e) => console.warn("SW gagal:", e)));
+}
