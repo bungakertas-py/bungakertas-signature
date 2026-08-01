@@ -42,13 +42,17 @@ def _category(wind_kt: float) -> tuple[int, str]:
     return -2, "Depresi Tropis"
 
 
-# Tingkatan ala BMKG (dari kuat ke lemah). tier → (rank, warna dipilih frontend).
-_TIER_RANK = {"TC": 2, "SEED": 1, "CIRC": 0}
+# Tingkatan (rank untuk peringkat/peak). tier → warna dipilih frontend.
+_TIER_RANK = {"EXTRA": 3, "TC": 2, "SEED": 1, "CIRC": 0}
 
 
 def _classify(wind_kt: float, lat: float, vt: float) -> tuple[str, int, str]:
-    """Tentukan TINGKAT + kode + label awam dari kecepatan, lintang, & kekuatan putaran.
-    TC (Siklon Tropis) butuh lintang ≥5°, angin ≥34 kt, DAN putaran kuat (vt≥7)."""
+    """Tentukan TINGKAT + kode + label dari kecepatan, lintang, & kekuatan putaran.
+    - EXTRA (Siklon Lintang Tinggi): |lat|≥30° (dekat tepi domain, cenderung ekstratropis).
+    - TC (Siklon Tropis): lintang 5–30°, angin ≥34 kt, putaran kuat (vt≥7).
+    - SEED (Bibit): lintang ≥5°, ≥25 kt, berputar. CIRC (Sirkulasi): sisanya."""
+    if abs(lat) >= 30 and wind_kt >= 25:
+        return "EXTRA", -5, "Siklon Lintang Tinggi"
     if abs(lat) >= 5 and wind_kt >= 34 and vt >= 7.0:
         code, cat_label = _category(wind_kt)
         return "TC", code, f"Siklon Tropis · {cat_label}"
@@ -110,7 +114,7 @@ def _detect_frame(P, U, V, grid, min_wind_kt):
             continue
         lat = north - i * dy
         lon = west + j * dx
-        if abs(lat) < 2 or abs(lat) > 30:
+        if abs(lat) < 2 or abs(lat) > 32:
             continue
         i0, i1 = max(0, i - rad), min(ny, i + rad + 1)
         j0, j1 = max(0, j - rad), min(nx, j + rad + 1)
@@ -194,13 +198,14 @@ def detect_and_track(series: dict, times: list, grid: dict, min_wind_kt: float =
 
     # Ambang tampil per tingkat: makin lemah, makin wajib PERSISTEN (kurangi noise
     # low monsun global). MIN_LEN = langkah minimum, MIN_PEAK = angin puncak minimum.
-    MIN_LEN = {"TC": 1, "SEED": 3, "CIRC": 4}
-    MIN_PEAK = {"TC": 34, "SEED": 30, "CIRC": 22}
+    MIN_LEN = {"EXTRA": 2, "TC": 1, "SEED": 3, "CIRC": 4}
+    MIN_PEAK = {"EXTRA": 25, "TC": 34, "SEED": 30, "CIRC": 22}
     MAX_TRACKS = 12
 
     out = []
-    counters = {"TC": 0, "SEED": 0, "CIRC": 0}
-    names = {"TC": "Siklon Tropis", "SEED": "Bibit Siklon", "CIRC": "Sirkulasi Siklonik"}
+    counters = {"EXTRA": 0, "TC": 0, "SEED": 0, "CIRC": 0}
+    names = {"EXTRA": "Siklon Lintang Tinggi", "TC": "Siklon Tropis",
+             "SEED": "Bibit Siklon", "CIRC": "Sirkulasi Siklonik"}
     for tr in tracks:
         pts = [{"t": p["t"], "lat": p["lat"], "lon": p["lon"], "mslp": p["mslp"],
                 "wind_kt": p["wind_kt"], "cat": p["cat"], "label": p["label"], "tier": p["tier"]}

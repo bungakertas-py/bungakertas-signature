@@ -57,6 +57,7 @@
               <strong>Kertas Cuaca</strong>
               <span>From Sky to Data · Farras Ghaly</span>
             </div>
+            <button id="about-btn" class="brand-info" title="Tentang" aria-label="Tentang"><span class="material-symbols-outlined">info</span></button>
           </div>
 
           <div class="layer-bar">
@@ -114,6 +115,7 @@
           <button id="city-toggle" class="icon-btn" title="Ikon kondisi cuaca per kota (nyalakan/matikan)"><span class="material-symbols-outlined">partly_cloudy_day</span></button>
           <button id="cyclone-toggle" class="icon-btn" title="Deteksi siklon + jalur prakiraan (indikasi model GFS)"><span class="material-symbols-outlined">cyclone</span></button>
           <button id="share-btn" class="icon-btn" title="Bagikan tampilan ini"><span class="material-symbols-outlined">share</span></button>
+          <button id="fs-btn" class="icon-btn" title="Layar penuh (sembunyikan panel)"><span class="material-symbols-outlined">fullscreen</span></button>
           <div class="search-wrap">
             <button id="search-btn" class="icon-btn" title="Cari kota / kabupaten"><span class="material-symbols-outlined">search</span></button>
             <div id="search-box" class="search-box">
@@ -157,16 +159,34 @@
     <!-- Toast kecil (mis. "Link disalin") -->
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <!-- Catatan + legenda siklon (muncul saat toggle siklon aktif) -->
+    <!-- Catatan siklon + dropdown legenda/threshold (muncul saat toggle aktif) -->
     <div id="cyc-note" class="cyc-note">
       <div class="cyc-note-top">
         <span class="material-symbols-outlined">error</span>
-        <span>Indikasi model GFS — bukan peringatan resmi BMKG/TCWC</span>
+        <span class="cyc-note-txt">Indikasi model GFS, bukan peringatan resmi BMKG/TCWC</span>
       </div>
-      <div class="cyc-legend">
-        <span class="cyc-chip"><i style="background:#d61f1f"></i>Siklon Tropis</span>
-        <span class="cyc-chip"><i style="background:#f59f00"></i>Bibit Siklon</span>
-        <span class="cyc-chip"><i style="background:#eab308"></i>Sirkulasi Siklonik</span>
+      <div class="cyc-detail">
+        <div class="cyc-row"><span class="material-symbols-outlined cyc-ic" style="color:#7a1fa2">cyclone</span><b>Siklon Lintang Tinggi</b><span class="cyc-th">lintang ≥30° · angin ≥25 kt</span></div>
+        <div class="cyc-row"><span class="material-symbols-outlined cyc-ic" style="color:#d61f1f">cyclone</span><b>Siklon Tropis</b><span class="cyc-th">angin ≥34 kt · putaran kuat</span></div>
+        <div class="cyc-row"><span class="material-symbols-outlined cyc-ic" style="color:#f59f00">cyclone</span><b>Bibit Siklon</b><span class="cyc-th">angin 25-33 kt · berputar</span></div>
+        <div class="cyc-row"><span class="material-symbols-outlined cyc-ic" style="color:#1b7a3d">cyclone</span><b>Sirkulasi Siklonik</b><span class="cyc-th">angin ~20-24 kt · pusaran lemah</span></div>
+      </div>
+      <button type="button" class="cyc-tab" id="cyc-note-toggle" aria-label="Tampilkan keterangan siklon">
+        <span class="material-symbols-outlined cyc-caret">expand_more</span>
+      </button>
+    </div>
+
+    <!-- Kartu Tentang -->
+    <div id="about-overlay" class="about-overlay">
+      <div class="about-card">
+        <button id="about-close" class="about-close" aria-label="Tutup"><span class="material-symbols-outlined">close</span></button>
+        <div class="about-photo"><img src="farras.png" alt="Farras Ghaly" /></div>
+        <div class="about-body">
+          <span class="about-tag">TENTANG</span>
+          <h2 class="about-name">Farras Ghaly</h2>
+          <p class="about-intro">Hi, I'm Farras Ghaly. I built Kertas Cuaca to turn free global weather models into a map anyone can actually read.</p>
+          <div class="about-quote">"vibe coded this, don't ask me how it works"</div>
+        </div>
       </div>
     </div>
 

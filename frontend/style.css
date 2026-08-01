@@ -404,18 +404,81 @@ html, body {
 @keyframes cyc-rot { to { transform: rotate(360deg); } }
 .cyc-note {
   position: absolute; top: 70px; left: 50%; transform: translate(-50%, -8px);
-  display: none; flex-direction: column; gap: 6px; max-width: 92vw;
-  background: #e8342c; color: #fff; border: 2px solid var(--ink); box-shadow: var(--shadow-sm);
-  padding: 7px 12px; font-family: var(--font-ui); font-size: 11px; font-weight: 700;
-  line-height: 1.2; z-index: 1200; pointer-events: none;
+  display: none; flex-direction: column; max-width: 92vw; width: max-content;
+  border: 2px solid var(--ink); box-shadow: var(--shadow-sm); background: var(--surface);
+  z-index: 1200; pointer-events: auto;
 }
 .cyc-note.show { display: flex; }
-.cyc-note-top { display: flex; align-items: center; gap: 6px; }
+.cyc-note-top {
+  display: flex; align-items: center; gap: 6px; padding: 7px 12px;
+  background: #e8342c; color: #fff;
+  font-family: var(--font-ui); font-size: 11px; font-weight: 700; line-height: 1.2;
+}
 .cyc-note-top .material-symbols-outlined { font-size: 16px; flex: none; }
-.cyc-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; padding-top: 5px; border-top: 1.5px solid rgba(255,255,255,.35); }
-.cyc-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; }
-.cyc-chip i { width: 11px; height: 11px; border: 1.5px solid var(--ink); flex: none; }
+/* Tab putih menonjol di bawah-tengah kontainer. z-index -1 → muncul DARI DALAM
+   banner (bagian atasnya ketutup kontainer), jadi batas putihnya mulus/tak terlihat. */
+.cyc-tab {
+  position: absolute; left: 50%; bottom: -15px; transform: translateX(-50%); z-index: -1;
+  width: 38px; height: 17px; display: flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 2px solid var(--ink); border-top: none;
+  cursor: pointer; padding: 0;
+}
+.cyc-caret { position: relative; top: 2px; font-size: 18px; line-height: 1; color: #d61f1f; transition: transform .15s ease; }
+.cyc-note.open .cyc-caret { transform: rotate(180deg); }
+/* panel putih detail: swatch warna + nama + threshold tiap tingkat */
+.cyc-detail { display: none; flex-direction: column; gap: 7px; padding: 9px 10px;
+  background: var(--surface); color: var(--ink); }
+.cyc-note.open .cyc-detail { display: flex; }
+.cyc-row { display: flex; align-items: center; gap: 8px; font-family: var(--font-ui); font-size: 10px; white-space: nowrap; }
+.cyc-ic { font-size: 18px; flex: none; line-height: 1; font-variation-settings: "FILL" 1, "wght" 600; }
+.cyc-row b { font-weight: 700; }
+.cyc-th { color: var(--variant); margin-left: auto; padding-left: 14px; }
 @media (prefers-reduced-motion: reduce) { .cyc-spin { animation: none; } }
+
+/* Layar penuh / immersive: sisakan HANYA brand Kertas Cuaca + tombol fullscreen.
+   Class di #stage (induk #ui & overlay sibling spt #cyc-note/#toast). */
+#stage.immersive #ui .col > *:not(.brand):not(#fs-btn),
+#stage.immersive .ui-bottom,
+#stage.immersive #cyc-note,
+#stage.immersive #toast,
+#stage.immersive #point-panel,
+#stage.immersive #pt-reopen { display: none !important; }
+
+/* Tombol info kecil di brand → buka kartu Tentang */
+.brand-info { flex: none; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 2px solid var(--ink); box-shadow: 2px 2px 0 0 var(--ink);
+  cursor: pointer; pointer-events: auto; margin-left: 2px; }
+.brand-info:hover { background: var(--lime); }
+.brand-info .material-symbols-outlined { font-size: 17px; color: var(--primary); }
+.brand-info:hover .material-symbols-outlined { color: var(--on-lime); }
+
+/* Kartu Tentang (modal) */
+.about-overlay { position: fixed; inset: 0; z-index: 3000; display: none; align-items: center; justify-content: center;
+  padding: 20px; background: rgba(28, 27, 27, .5); pointer-events: auto; }
+.about-overlay.show { display: flex; }
+.about-card { position: relative; display: flex; width: 100%; max-width: 600px;
+  background: var(--surface); border: var(--bw) solid var(--ink); box-shadow: var(--shadow); }
+.about-close { position: absolute; top: 8px; right: 8px; z-index: 2; width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center; background: var(--surface);
+  border: 2px solid var(--ink); box-shadow: 2px 2px 0 0 var(--ink); cursor: pointer; }
+.about-close .material-symbols-outlined { font-size: 18px; }
+.about-photo { flex: 0 0 42%; background: var(--lime); border-right: var(--bw) solid var(--ink);
+  display: flex; align-items: flex-end; justify-content: center; overflow: hidden; }
+.about-photo img { width: 100%; height: auto; display: block; }
+.about-body { flex: 1; min-width: 0; padding: 22px 20px 24px; display: flex; flex-direction: column; gap: 12px; }
+.about-tag { align-self: flex-start; font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; background: var(--lime); color: var(--on-lime); border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 0 var(--ink); padding: 3px 8px; }
+.about-name { font-family: var(--font-display); font-size: 26px; letter-spacing: -.01em; line-height: 1; }
+.about-intro { font-family: var(--font-ui); font-size: 13px; line-height: 1.5; color: var(--ink); }
+.about-quote { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--ink);
+  background: var(--lime); border: 2px solid var(--ink); box-shadow: 3px 3px 0 0 var(--ink); padding: 9px 11px; margin-top: 2px; }
+@media (max-width: 560px) {
+  .about-card { flex-direction: column; max-width: 320px; max-height: 88vh; overflow-y: auto; }
+  .about-photo { flex: none; border-right: none; border-bottom: var(--bw) solid var(--ink); }
+  .about-body { padding: 16px; }
+  .about-name { font-size: 22px; }
+}
 
 /* Penanda "kamu di sini" (geolokasi) — badge bulat neubrutalist. */
 .pm-me {
