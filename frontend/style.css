@@ -307,6 +307,20 @@ html, body {
 .pt-coords.pt-addr { font-size: 16px; letter-spacing: 0; line-height: 1.25; }
 .pt-body { flex: 1; overflow-y: auto; padding: 16px 18px; }
 .pt-loading { font-family: var(--font-mono); font-size: 13px; color: var(--variant); padding: 20px 0; }
+
+/* Skeleton per-kontainer panel titik (meniru layout renderPoint). */
+.pt-skel { display: flex; flex-direction: column; gap: 16px; }
+.pt-skel .sk-bar { background: #e3e7ec; }
+.pt-skel-lines { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.pt-skel-lines .sk-bar { height: 11px; }
+.pt-skel-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.pt-skel-chips .sk-bar { height: 26px; width: 108px; border-radius: 999px; }
+.pt-skel-sec { align-self: flex-start; width: 44%; height: 10px; }
+.pt-skel-cards { display: flex; gap: 8px; }
+.pt-skel-cards .sk-bar { flex: 1; height: 92px; border-radius: 10px; }
+.pt-skel-chart { height: 152px; border-radius: 10px; }
+.pt-skel-rows { display: flex; flex-direction: column; gap: 6px; }
+.pt-skel-rows .sk-bar { height: 16px; }
 .pt-sec {
   font-family: var(--font-ui); font-weight: 700; font-size: 12px; letter-spacing: .05em;
   text-transform: uppercase; margin: 4px 0 10px; display: flex; justify-content: space-between;
@@ -360,6 +374,14 @@ html, body {
   display: block; width: 13px; height: 13px; background: var(--primary);
   border: 2px solid #fff; transform: rotate(45deg); box-shadow: 0 0 0 1.5px var(--ink);
 }
+/* Penanda "kamu di sini" (geolokasi) — badge bulat neubrutalist. */
+.pm-me {
+  display: grid; place-items: center; width: 32px; height: 32px;
+  background: var(--primary); color: #fff;
+  border: 2.5px solid var(--ink); border-radius: 50%;
+  box-shadow: var(--shadow-sm);
+}
+.pm-me .material-symbols-outlined { font-size: 20px; line-height: 1; }
 
 /* Point panel: hide/reopen */
 .pt-head-btns { display: flex; gap: 8px; }

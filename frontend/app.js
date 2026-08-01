@@ -583,24 +583,45 @@ function chartLegend(color) {
     `<span class="chl-key">${line(true)}<i>Forecast</i></span></div>`;
 }
 
-async function openPoint(lat, lon, label) {
+async function openPoint(lat, lon, label, isMe) {
   ++pointToken; // titik baru → batalkan reverse-geocode titik sebelumnya
   const pp = $("point-panel");
   if (pp) { pp.classList.add("open"); pp.classList.remove("hidden"); }
   $("pt-reopen")?.classList.remove("show");
-  if (pointMarker) pointMarker.setLatLng([lat, lon]);
-  else pointMarker = L.marker([lat, lon], {
-    icon: L.divIcon({ className: "point-mark", html: '<span class="pm-diamond"></span>', iconSize: [20, 20] }),
+  // Marker: ikon "orang" (kamu di sini) utk geolokasi, belah-ketupat utk titik lain.
+  if (pointMarker) map.removeLayer(pointMarker);
+  const html = isMe
+    ? '<span class="pm-me"><span class="material-symbols-outlined">person</span></span>'
+    : '<span class="pm-diamond"></span>';
+  const sz = isMe ? 32 : 20;
+  pointMarker = L.marker([lat, lon], {
+    icon: L.divIcon({ className: "point-mark", html, iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }),
     interactive: false, pane: "labels",
   }).addTo(map);
   setPointLabel(label || fmtCoord(lat, lon), label ? "addr" : "coord");
-  const body = $("pt-body"); if (body) body.innerHTML = '<div class="pt-loading">Memuat data titik…</div>';
+  const body = $("pt-body"); if (body) body.innerHTML = pointSkeleton();
   try {
     renderPoint(await loadPointData(), lat, lon);
   } catch (e) {
     if (body) body.innerHTML = '<div class="pt-loading">Gagal memuat data titik.</div>';
     console.error(e);
   }
+}
+
+// Skeleton panel titik: tulang shimmer per-kontainer (ringkasan, chip, kartu
+// 3-hari, grafik, tabel) meniru layout renderPoint — dipakai saat data dimuat.
+function pointSkeleton() {
+  const bar = (cls, w) => `<span class="sk-bar${cls ? " " + cls : ""}"${w ? ` style="width:${w}"` : ""}></span>`;
+  return '<div class="pt-skel">' +
+    `<div class="pt-skel-lines">${bar("", "100%")}${bar("", "94%")}${bar("", "60%")}</div>` +
+    `<div class="pt-skel-chips">${bar()}${bar()}</div>` +
+    bar("pt-skel-sec") +
+    `<div class="pt-skel-cards">${bar()}${bar()}${bar()}</div>` +
+    bar("pt-skel-sec") +
+    bar("pt-skel-chart") +
+    bar("pt-skel-sec") +
+    `<div class="pt-skel-rows">${bar("", "100%")}${bar("", "100%")}${bar("", "100%")}${bar("", "100%")}${bar("", "100%")}</div>` +
+    '</div>';
 }
 
 // ---- Ringkasan awam untuk panel titik --------------------------------
@@ -1078,7 +1099,7 @@ async function init() {
             return;
           }
           map.setView([latitude, longitude], 8, { animate: true });
-          openPoint(latitude, longitude);
+          openPoint(latitude, longitude, null, true); // marker "kamu di sini"
           fillAddress(latitude, longitude); // koordinat → alamat kecamatan/kota
         },
         () => { btn.classList.remove("active"); alert("Tidak bisa mengakses lokasi. Izinkan akses lokasi di browser."); },
