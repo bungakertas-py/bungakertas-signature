@@ -414,6 +414,54 @@ function fmtCoord(lat, lon) {
 }
 function fmtHour(iso) { const w = toWIB(iso); return w.getUTCDate() + "/" + String(w.getUTCHours()).padStart(2, "0"); }
 
+// Judul panel titik: koordinat (klik acak), nama kota (search/ikon), atau
+// alamat hasil reverse-geocoding (tombol "lokasi saya"). Token menjaga agar
+// hasil geocoding yang datang telat tak menimpa titik lain yang keburu dipilih.
+let pointToken = 0;
+function setPointLabel(text, kind) { // kind: "coord" | "addr" | "loading"
+  const c = $("pt-coords"); if (!c) return;
+  c.textContent = text;
+  c.classList.toggle("mono", kind === "coord");
+  c.classList.toggle("pt-addr", kind === "addr" || kind === "loading");
+}
+
+// Susun alamat awam "Kelurahan, Kecamatan, Kota/Kabupaten" dari address
+// Nominatim (tag OSM Indonesia tak konsisten → ambil sebisanya lalu dedup).
+function addressLabel(a) {
+  if (!a) return null;
+  const kel = a.village || a.neighbourhood || a.hamlet || a.suburb;
+  const kec = a.municipality || a.subdistrict || a.city_district;
+  const kk  = a.city || a.town || a.county || a.regency;
+  const seen = new Set(), parts = [];
+  for (const x of [kel, kec, kk, a.state])
+    if (x && !seen.has(x)) { seen.add(x); parts.push(x); }
+  return parts.slice(0, 3).join(", ") || null;
+}
+
+// Reverse-geocode via Nominatim (OpenStreetMap) — dipakai HANYA untuk tombol
+// "lokasi saya" (jarang & dipicu user, sesuai kebijakan pemakaian wajar).
+async function reverseGeocode(lat, lon) {
+  const url = "https://nominatim.openstreetmap.org/reverse?format=jsonv2" +
+    "&lat=" + lat + "&lon=" + lon + "&zoom=14&addressdetails=1&accept-language=id";
+  const r = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!r.ok) throw new Error("geocode " + r.status);
+  return addressLabel((await r.json()).address);
+}
+
+// Cari alamat lalu perbarui judul; gagal / titik sudah diganti → koordinat.
+async function fillAddress(lat, lon) {
+  const token = pointToken;
+  setPointLabel("Mencari alamat…", "loading");
+  try {
+    const addr = await reverseGeocode(lat, lon);
+    if (pointToken !== token) return;
+    setPointLabel(addr || fmtCoord(lat, lon), addr ? "addr" : "coord");
+  } catch (_) {
+    if (pointToken !== token) return;
+    setPointLabel(fmtCoord(lat, lon), "coord");
+  }
+}
+
 // Deret-waktu untuk VARIABEL yang sedang dipilih (ikut layer aktif).
 function chartSeries(pd, lat, lon) {
   const times = pd.meta.times;
@@ -535,7 +583,8 @@ function chartLegend(color) {
     `<span class="chl-key">${line(true)}<i>Forecast</i></span></div>`;
 }
 
-async function openPoint(lat, lon) {
+async function openPoint(lat, lon, label) {
+  ++pointToken; // titik baru → batalkan reverse-geocode titik sebelumnya
   const pp = $("point-panel");
   if (pp) { pp.classList.add("open"); pp.classList.remove("hidden"); }
   $("pt-reopen")?.classList.remove("show");
@@ -544,7 +593,7 @@ async function openPoint(lat, lon) {
     icon: L.divIcon({ className: "point-mark", html: '<span class="pm-diamond"></span>', iconSize: [20, 20] }),
     interactive: false, pane: "labels",
   }).addTo(map);
-  const c = $("pt-coords"); if (c) c.textContent = fmtCoord(lat, lon);
+  setPointLabel(label || fmtCoord(lat, lon), label ? "addr" : "coord");
   const body = $("pt-body"); if (body) body.innerHTML = '<div class="pt-loading">Memuat data titik…</div>';
   try {
     renderPoint(await loadPointData(), lat, lon);
@@ -741,9 +790,9 @@ function renderSearch(q) {
     ? res.map((p) => `<div class="search-item" data-lat="${p.lat}" data-lon="${p.lon}">${p.n}</div>`).join("")
     : '<div class="search-empty">Tak ada hasil</div>';
 }
-function pickPlace(lat, lon) {
+function pickPlace(lat, lon, name) {
   map.setView([lat, lon], 8, { animate: true });
-  openPoint(lat, lon);
+  openPoint(lat, lon, name);
   $("search-box")?.classList.remove("open");
 }
 
@@ -823,7 +872,7 @@ async function refreshCityIcons() {
         html: `<span class="cc-ico ${c.cond.cls}${c.p.tier === 0 ? " cc-cap" : ""}">` +
               `<span class="material-symbols-outlined">${c.cond.icon}</span></span>` }),
     });
-    m.on("click", (e) => { L.DomEvent.stopPropagation(e); openPoint(c.p.lat, c.p.lon); });
+    m.on("click", (e) => { L.DomEvent.stopPropagation(e); openPoint(c.p.lat, c.p.lon, c.p.n); });
     cityGroup.addLayer(m);
   }
 }
@@ -1030,6 +1079,7 @@ async function init() {
           }
           map.setView([latitude, longitude], 8, { animate: true });
           openPoint(latitude, longitude);
+          fillAddress(latitude, longitude); // koordinat → alamat kecamatan/kota
         },
         () => { btn.classList.remove("active"); alert("Tidak bisa mengakses lokasi. Izinkan akses lokasi di browser."); },
         { enableHighAccuracy: true, timeout: 8000 }
@@ -1053,12 +1103,12 @@ async function init() {
       if (e.key === "Escape") sbox.classList.remove("open");
       if (e.key === "Enter") {
         const f = $("search-results").querySelector(".search-item");
-        if (f) pickPlace(parseFloat(f.dataset.lat), parseFloat(f.dataset.lon));
+        if (f) pickPlace(parseFloat(f.dataset.lat), parseFloat(f.dataset.lon), f.textContent);
       }
     });
     $("search-results")?.addEventListener("click", (e) => {
       const it = e.target.closest(".search-item");
-      if (it) pickPlace(parseFloat(it.dataset.lat), parseFloat(it.dataset.lon));
+      if (it) pickPlace(parseFloat(it.dataset.lat), parseFloat(it.dataset.lon), it.textContent);
     });
     // Initial time (dekoratif) diisi dari run model
     const io = $("init-opt");
