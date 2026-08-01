@@ -39,16 +39,20 @@
             </div>
           </div>
 
-          <div class="panel layers">
-            <button class="layer-btn active" data-layer="wind_surface">
-              <span class="material-symbols-outlined">air</span> Angin
-            </button>
-            <button class="layer-btn" data-layer="rain_surface"><span class="material-symbols-outlined">rainy</span> Hujan</button>
-            <button class="layer-btn" data-layer="rain_accum_surface"><span class="material-symbols-outlined">water_drop</span> Akum. Hujan 24J</button>
-            <button class="layer-btn" data-layer="temp_surface"><span class="material-symbols-outlined">thermostat</span> Suhu</button>
-            <button class="layer-btn" data-layer="humidity_surface"><span class="material-symbols-outlined">humidity_percentage</span> Kelembapan</button>
-            <button class="layer-btn" data-layer="cloud_surface"><span class="material-symbols-outlined">cloud</span> Tutupan Awan</button>
-            <button class="layer-btn" data-layer="pressure_surface"><span class="material-symbols-outlined">speed</span> Tekanan</button>
+          <div class="layer-bar">
+            <button id="layer-prev" class="layer-nav" aria-label="Variabel sebelumnya"><span class="material-symbols-outlined">chevron_left</span></button>
+            <div class="panel layers">
+              <button class="layer-btn active" data-layer="wind_surface">
+                <span class="material-symbols-outlined">air</span> Angin
+              </button>
+              <button class="layer-btn" data-layer="rain_surface"><span class="material-symbols-outlined">rainy</span> Hujan</button>
+              <button class="layer-btn" data-layer="rain_accum_surface"><span class="material-symbols-outlined">water_drop</span> Akum. Hujan 24J</button>
+              <button class="layer-btn" data-layer="temp_surface"><span class="material-symbols-outlined">thermostat</span> Suhu</button>
+              <button class="layer-btn" data-layer="humidity_surface"><span class="material-symbols-outlined">humidity_percentage</span> Kelembapan</button>
+              <button class="layer-btn" data-layer="cloud_surface"><span class="material-symbols-outlined">cloud</span> Tutupan Awan</button>
+              <button class="layer-btn" data-layer="pressure_surface"><span class="material-symbols-outlined">speed</span> Tekanan</button>
+            </div>
+            <button id="layer-next" class="layer-nav" aria-label="Variabel berikutnya"><span class="material-symbols-outlined">chevron_right</span></button>
           </div>
 
           <div class="panel selects">

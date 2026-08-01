@@ -87,6 +87,8 @@ html, body {
 .layer-btn.active { background: var(--lime); color: var(--on-lime); }
 .layer-btn.active .material-symbols-outlined { color: var(--on-lime); }
 .layer-btn.disabled { opacity: .45; cursor: not-allowed; }
+/* Panah geser variabel — hanya tampil di HP (lihat media query) */
+.layer-nav { display: none; }
 
 /* ---- Model / level / init ---- */
 .selects { width: 224px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -389,9 +391,83 @@ html, body {
 .search-item:hover { background: var(--lime); }
 .search-empty { padding: 12px 14px; font-size: 13px; color: var(--variant); }
 
-/* ---- Responsif: layar sempit, kecilkan sedikit ---- */
-@media (max-width: 720px) {
-  .layers, .selects { width: 190px; }
-  .legend-cell { width: 32px; }
-  .surf-title { font-size: 18px; }
+/* =====================================================================
+   RESPONSIF — tablet & smartphone (overlay mengambang di atas peta)
+   ===================================================================== */
+
+/* ---- TABLET (≤1024px): kecilkan panel, legenda bisa di-scroll ---- */
+@media (max-width: 1024px) {
+  #ui { padding: 14px; }
+  .layers, .selects { width: 200px; }
+  .layer-btn { padding: 10px 14px; font-size: 14px; }
+  .brand-text strong { font-size: 18px; }
+  .legend-col { max-width: 58vw; }
+  .legend-panel { min-width: 0; }
+  .legend { overflow-x: auto; min-width: 0; }
+  .legend-cell { width: 36px; }
+}
+
+/* ---- SMARTPHONE (≤640px): layout vertikal ---- */
+@media (max-width: 640px) {
+  #ui { padding: 10px; }
+  .ui-top { gap: 8px; align-items: flex-start; }
+
+  /* brand ringkas (tagline disembunyikan) */
+  .brand { padding: 7px 10px; gap: 8px; }
+  .brand-logo { width: 30px; height: 30px; }
+  .brand-text strong { font-size: 15px; }
+  .brand-text span { display: none; }
+
+  /* sembunyikan elemen dekoratif + zoom (pinch/dobel-tap jalan di peta) */
+  .selects, .lang, .zoom { display: none; }
+
+  /* kontrol kanan (geo, ikon-kota, cari) → sebaris di kanan-atas */
+  .col.items-end { flex-direction: row; gap: 8px; align-items: flex-start; }
+  .icon-btn { width: 40px; height: 40px; box-shadow: var(--shadow-sm); }
+
+  /* tombol layer → carousel berlabel: [‹] [strip bisa di-swipe] [›].
+     Panah menggeser ke variabel berikutnya; label tetap tampil (awam). */
+  .layer-bar {
+    position: absolute; left: 10px; right: 10px; top: 62px;
+    display: flex; align-items: stretch;
+    border: var(--bw) solid var(--ink); box-shadow: var(--shadow-sm); background: var(--surface);
+  }
+  .layer-nav {
+    display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+    width: 30px; border: none; background: var(--surface); cursor: pointer; pointer-events: auto;
+  }
+  .layer-nav .material-symbols-outlined { font-size: 22px; }
+  .layer-prev { border-right: var(--bw) solid var(--ink); }
+  .layer-next { border-left: var(--bw) solid var(--ink); }
+  .layer-nav.nav-hidden { opacity: .22; pointer-events: none; }
+
+  .layers {
+    position: static; flex: 1 1 auto; min-width: 0;
+    flex-direction: row; width: auto; border: none; box-shadow: none;
+    overflow-x: auto; overflow-y: hidden; scroll-behavior: smooth;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .layers::-webkit-scrollbar { display: none; }
+  .layer-btn {
+    flex: 0 0 auto; border-bottom: none; border-right: var(--bw) solid var(--ink);
+    padding: 10px 14px; font-size: 13px; gap: 8px; white-space: nowrap;
+  }
+  .layer-btn:last-child { border-right: none; }
+  .layer-btn .material-symbols-outlined { font-size: 19px; }
+
+  /* bawah: legenda (atas, bisa scroll) + slider full-width (bawah) */
+  .ui-bottom { flex-direction: column; align-items: stretch; gap: 8px; }
+  .legend-col { order: 1; align-self: stretch; max-width: none; }
+  .timeline { order: 2; padding: 8px 10px; }
+  .legend-panel { min-width: 0; }
+  .legend { overflow-x: auto; min-width: 0; }
+  .legend-cell { width: 34px; min-height: 30px; font-size: 12px; }
+  .cond-legend { right: 0; left: auto; }
+
+  /* panel detail titik = full-screen */
+  #point-panel { width: 100vw; max-width: 100vw; border-left: none; }
+  #pt-reopen { top: auto; bottom: 128px; transform: none; }
+
+  /* kotak pencarian = full-width di bawah bar atas */
+  .search-box { position: fixed; top: 112px; left: 10px; right: 10px; width: auto; }
 }

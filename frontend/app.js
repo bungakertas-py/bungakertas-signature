@@ -950,8 +950,19 @@ async function init() {
       let halfH = Math.abs(ne.y - sw.y) / 2;
       const size = map.getSize();
       const screenRatio = size.x / size.y;
-      if (screenRatio > halfW / halfH) halfW = halfH * screenRatio; // layar lebih lebar → perlebar bujur
-      else halfH = halfW / screenRatio;                             // layar lebih tinggi → pertinggi lintang
+      if (screenRatio > halfW / halfH) {
+        halfW = halfH * screenRatio;                                // layar lebih lebar → perlebar bujur
+      } else {
+        // Layar lebih tinggi (mis. HP potret) → perlu pertinggi lintang. TAPI
+        // jangan sampai keluar domain data GRIB (lat ±33) → atas/bawah kosong.
+        // Bila melebihi, KUNCI lintang ke domain data & POTONG bujur: tampil
+        // strip vertikal (data penuh atas–bawah, zoom lebih dekat di HP).
+        halfH = halfW / screenRatio;
+        const dsw = crs.project(dataBounds.getSouthWest());
+        const dne = crs.project(dataBounds.getNorthEast());
+        const dataHalfH = Math.abs(dne.y - dsw.y) / 2;
+        if (halfH > dataHalfH) { halfH = dataHalfH; halfW = halfH * screenRatio; }
+      }
       const box = L.latLngBounds(
         crs.unproject(L.point(cx - halfW, cy - halfH)),
         crs.unproject(L.point(cx + halfW, cy + halfH))
@@ -983,6 +994,22 @@ async function init() {
     // Tombol zoom neubrutalist → kontrol peta
     $("zoom-in")?.addEventListener("click", () => map.zoomIn());
     $("zoom-out")?.addEventListener("click", () => map.zoomOut());
+
+    // Panah geser variabel (HP): gulir strip layer + auto-redup panah di ujung.
+    const layersEl = document.querySelector(".layers");
+    const layerStep = () => Math.max(120, (layersEl ? layersEl.clientWidth : 200) * 0.7);
+    function updateLayerNav() {
+      if (!layersEl) return;
+      const atStart = layersEl.scrollLeft <= 1;
+      const atEnd = layersEl.scrollLeft + layersEl.clientWidth >= layersEl.scrollWidth - 1;
+      $("layer-prev")?.classList.toggle("nav-hidden", atStart);
+      $("layer-next")?.classList.toggle("nav-hidden", atEnd);
+    }
+    $("layer-prev")?.addEventListener("click", () => layersEl?.scrollBy({ left: -layerStep(), behavior: "smooth" }));
+    $("layer-next")?.addEventListener("click", () => layersEl?.scrollBy({ left: layerStep(), behavior: "smooth" }));
+    layersEl?.addEventListener("scroll", updateLayerNav);
+    window.addEventListener("resize", updateLayerNav);
+    updateLayerNav();
 
     // Toggle ikon kondisi cuaca per kota + hitung ulang declutter tiap pindah/zoom
     $("city-toggle")?.addEventListener("click", toggleCityIcons);
