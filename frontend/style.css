@@ -130,9 +130,45 @@ html, body {
 }
 .icon-btn:hover:not(:disabled) { transform: translate(2px, 2px); box-shadow: 3px 3px 0 0 var(--ink); }
 .icon-btn:disabled { opacity: .5; cursor: not-allowed; }
+.icon-btn.active { background: var(--lime); }
+.icon-btn.active .material-symbols-outlined { color: var(--on-lime); }
+
+/* ---- Ikon kondisi cuaca per kota (declutter zoom) ---- */
+.city-cond { cursor: pointer; background: none; border: none; }
+.cc-ico {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; box-sizing: border-box;
+  background: var(--surface); border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 0 var(--ink);
+}
+.cc-ico .material-symbols-outlined { font-size: 19px; line-height: 1; }
+.cc-ico.cc-cap { width: 34px; height: 34px; border-width: 3px; box-shadow: 3px 3px 0 0 var(--ink); }
+.cc-ico.cc-cap .material-symbols-outlined { font-size: 22px; }
+.cc-sunny  .material-symbols-outlined { color: #f5a91e; }
+.cc-pcloud .material-symbols-outlined { color: #6b7686; }
+.cc-cloud  .material-symbols-outlined { color: #566072; }
+.cc-rain   .material-symbols-outlined { color: #2360c8; }
+.cc-heavy  .material-symbols-outlined { color: #e8590c; }
+.cc-storm  .material-symbols-outlined { color: #c81d5a; }
 
 /* ===================== BOTTOM: slider (kiri) + legenda (kanan) ===================== */
 .ui-bottom { display: flex; flex-direction: row; align-items: stretch; gap: 14px; }
+
+/* kolom kanan: legenda ikon kondisi (atas, saat toggle) + legend bar (bawah) */
+/* Legend bar tetap di tempat (align-self flex-end). Legenda KONDISI MENGAMBANG
+   di atasnya via position:absolute → TIDAK menambah tinggi alur, jadi bar warna
+   tak terdorong turun/keluar layar saat toggle aktif. */
+.legend-col { position: relative; align-self: flex-end; }
+.cond-legend { position: absolute; right: 0; bottom: calc(100% + 10px); display: none;
+  border: var(--bw) solid var(--ink); background: var(--surface); box-shadow: var(--shadow);
+  pointer-events: auto; white-space: nowrap; }
+.cond-legend.show { display: block; }
+.cl-head { background: var(--ink); color: var(--surface); font-size: 10px; font-weight: 700; letter-spacing: .1em; padding: 4px 8px; }
+.cl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 7px 9px; }
+.cl-item { display: flex; align-items: center; gap: 6px; }
+.cl-lbl { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.cc-ico.cc-mini { width: 20px; height: 20px; border-width: 1.5px; box-shadow: 1.5px 1.5px 0 0 var(--ink); }
+.cc-ico.cc-mini .material-symbols-outlined { font-size: 13px; }
 
 /* timeline / slider — bawah kiri; flex:1 → panjangnya otomatis dibatasi legenda di kanan */
 .timeline { flex: 1; min-width: 0; padding: 8px 14px; display: flex; align-items: center; gap: 14px; }
@@ -191,10 +227,62 @@ html, body {
 
 /* Loading */
 #loading {
+  display: none;   /* default sembunyi — hanya tampil untuk pesan error */
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   z-index: 2000; background: var(--surface); color: var(--ink);
   border: var(--bw) solid var(--ink); box-shadow: var(--shadow);
   padding: 20px 28px; font-family: var(--font-mono); font-size: 14px; max-width: 420px;
+}
+
+/* ===================== SKELETON LOADING (abu standar) ===================== */
+#skeleton {
+  position: absolute; inset: 0; z-index: 1500; background: #eef1f4;
+  padding: 20px; display: flex; flex-direction: column; justify-content: space-between;
+  transition: opacity .45s ease; pointer-events: all;
+}
+#skeleton.hide { opacity: 0; pointer-events: none; }
+.sk-top, .sk-bottom { display: flex; justify-content: space-between; align-items: flex-start; }
+.sk-bottom { align-items: flex-end; }
+.sk-col { display: flex; flex-direction: column; gap: 12px; }
+.sk-right { align-items: flex-end; }
+
+/* kartu abu (wadah) — meniru panel neubrutalist tanpa isi */
+.sk-panel {
+  display: flex; flex-direction: column; gap: 9px; width: 210px;
+  padding: 12px; border-radius: 10px; background: #e2e6ea;
+}
+.sk-brand { flex-direction: row; align-items: center; gap: 11px; }
+.sk-lines { display: flex; flex-direction: column; gap: 7px; flex: 1; }
+
+/* bar shimmer — elemen "tulang" abu */
+.sk-bar {
+  position: relative; overflow: hidden; border-radius: 6px; background: #d2d8de;
+}
+.sk-bar::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+  animation: sk-shimmer 1.3s infinite;
+}
+@keyframes sk-shimmer { 100% { transform: translateX(100%); } }
+
+.sk-logo { width: 38px; height: 38px; border-radius: 9px; flex: none; }
+.sk-line-lg { height: 12px; width: 72%; }
+.sk-line-sm { height: 9px; width: 46%; }
+.sk-layers .sk-bar { height: 26px; }
+.sk-selects .sk-bar { height: 21px; }
+.sk-mini { width: 46px; height: 46px; border-radius: 9px; }
+.sk-slider { width: min(46vw, 520px); height: 70px; border-radius: 10px; }
+.sk-legend { width: 210px; height: 74px; border-radius: 10px; }
+
+.sk-center {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px; pointer-events: none;
+}
+.sk-mark { animation: sk-pulse 1.4s ease-in-out infinite; }
+@keyframes sk-pulse { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.09); opacity: 1; } }
+.sk-load-text { color: #97a0aa; font-size: 12px; letter-spacing: .08em; }
+@media (prefers-reduced-motion: reduce) {
+  .sk-bar::after, .sk-mark { animation: none; }
 }
 .leaflet-control-attribution { font-family: var(--font-mono); font-size: 9px; }
 
@@ -221,7 +309,32 @@ html, body {
   text-transform: uppercase; margin: 4px 0 10px; display: flex; justify-content: space-between;
 }
 .pt-sec span { color: var(--primary); font-family: var(--font-mono); }
-.pt-meteo { display: block; margin-bottom: 18px; }
+
+/* Ringkasan bahasa manusia + saran aktivitas + kartu 3 hari (awam) */
+.pt-summary { font-size: 13.5px; line-height: 1.55; padding: 11px 13px; margin-bottom: 11px;
+  border: 2px solid var(--ink); background: var(--surface-low); }
+.pt-summary b { font-weight: 700; }
+.pt-summary .feels { color: #e8590c; font-weight: 700; white-space: nowrap; }
+.pt-advice { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.adv-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700;
+  padding: 4px 8px; border: 2px solid var(--ink); background: var(--surface); box-shadow: 2px 2px 0 0 var(--ink); }
+.adv-chip .material-symbols-outlined { font-size: 15px; }
+.fc-cards { display: flex; gap: 8px; margin-bottom: 18px; }
+.fc-card { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 9px 4px; border: 2px solid var(--ink); background: var(--surface); }
+.fc-day { font-size: 11px; font-weight: 700; text-align: center; line-height: 1.15; }
+.fc-day span { display: block; font-size: 9px; font-weight: 500; color: var(--variant); }
+.fc-temp { font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px; }
+.fc-temp .ft-ico { font-size: 15px; color: #e8590c; margin-right: -1px; }
+.fc-temp .t-max { color: #e8590c; }
+.fc-temp .t-min { color: #2360c8; }
+.fc-temp .t-min::before { content: "/"; color: var(--variant); font-weight: 500; margin: 0 1px; }
+.fc-rain { font-size: 10px; color: #2360c8; font-weight: 700; }
+.pt-meteo { display: block; margin-bottom: 4px; }
+.chart-legend { display: flex; gap: 18px; justify-content: center; margin: 0 0 18px;
+  font-size: 11px; font-weight: 600; color: var(--ink); }
+.chl-key { display: inline-flex; align-items: center; gap: 5px; }
+.chl-key i { font-style: italic; }
 .pt-ax { font-family: var(--font-mono); font-size: 9px; fill: #444; }
 .pt-table-wrap { max-height: 300px; overflow-y: auto; border: var(--bw) solid var(--ink); }
 .pt-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 11px; }
