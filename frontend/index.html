@@ -60,18 +60,42 @@
             <button id="about-btn" class="brand-info" title="Tentang" aria-label="Tentang"><span class="material-symbols-outlined">info</span></button>
           </div>
 
+          <!-- Catatan siklon + dropdown legenda/threshold (muncul saat toggle aktif).
+               Desktop: absolute (mengambang tengah-atas). HP: mengalir di bawah brand. -->
+          <div id="cyc-note" class="cyc-note">
+            <div class="cyc-note-top">
+              <span class="material-symbols-outlined">error</span>
+              <span class="cyc-note-txt">Indikasi model GFS, bukan peringatan resmi BMKG/TCWC</span>
+            </div>
+            <div class="cyc-detail">
+              <div class="cyc-row"><span class="material-symbols-outlined cyc-ic" style="color:#7a1fa2">cyclone</span><b>Siklon Lintang Tinggi</b><span class="cyc-th">lintang ≥30° · angin ≥25 kt</span></div>
+              <div class="cyc-row"><span class="material-symbols-outlined cyc-ic" style="color:#d61f1f">cyclone</span><b>Siklon Tropis</b><span class="cyc-th">angin ≥34 kt · putaran kuat</span></div>
+              <div class="cyc-row"><span class="material-symbols-outlined cyc-ic" style="color:#f59f00">cyclone</span><b>Bibit Siklon</b><span class="cyc-th">angin 25-33 kt · berputar</span></div>
+              <div class="cyc-row"><span class="material-symbols-outlined cyc-ic" style="color:#1b7a3d">cyclone</span><b>Sirkulasi Siklonik</b><span class="cyc-th">angin ~20-24 kt · pusaran lemah</span></div>
+            </div>
+            <button type="button" class="cyc-tab" id="cyc-note-toggle" aria-label="Tampilkan keterangan siklon">
+              <span class="material-symbols-outlined cyc-caret">expand_more</span>
+            </button>
+          </div>
+
           <div class="layer-bar">
+            <!-- HP: kepala dropdown "Parameter" (desktop disembunyikan) -->
+            <button id="param-toggle" class="param-toggle" aria-label="Parameter cuaca">
+              <span class="material-symbols-outlined param-ico">tune</span>
+              <span class="param-lbl">Parameter</span>
+              <span class="material-symbols-outlined param-caret">expand_more</span>
+            </button>
             <button id="layer-prev" class="layer-nav" aria-label="Variabel sebelumnya"><span class="material-symbols-outlined">chevron_left</span></button>
             <div class="panel layers">
-              <button class="layer-btn active" data-layer="wind_surface">
-                <span class="material-symbols-outlined">air</span> Angin
+              <button class="layer-btn active" data-layer="wind_surface" data-tip="Angin">
+                <span class="material-symbols-outlined">air</span> <span class="lb-txt">Angin</span>
               </button>
-              <button class="layer-btn" data-layer="rain_surface"><span class="material-symbols-outlined">rainy</span> Hujan</button>
-              <button class="layer-btn" data-layer="rain_accum_surface"><span class="material-symbols-outlined">water_drop</span> Akum. Hujan 24J</button>
-              <button class="layer-btn" data-layer="temp_surface"><span class="material-symbols-outlined">thermostat</span> Suhu</button>
-              <button class="layer-btn" data-layer="humidity_surface"><span class="material-symbols-outlined">humidity_percentage</span> Kelembapan</button>
-              <button class="layer-btn" data-layer="cloud_surface"><span class="material-symbols-outlined">cloud</span> Tutupan Awan</button>
-              <button class="layer-btn" data-layer="pressure_surface"><span class="material-symbols-outlined">speed</span> Tekanan</button>
+              <button class="layer-btn" data-layer="rain_surface" data-tip="Hujan"><span class="material-symbols-outlined">rainy</span> <span class="lb-txt">Hujan</span></button>
+              <button class="layer-btn" data-layer="rain_accum_surface" data-tip="Akum. Hujan 24J"><span class="material-symbols-outlined">water_drop</span> <span class="lb-txt">Akum. Hujan 24J</span></button>
+              <button class="layer-btn" data-layer="temp_surface" data-tip="Suhu"><span class="material-symbols-outlined">thermostat</span> <span class="lb-txt">Suhu</span></button>
+              <button class="layer-btn" data-layer="humidity_surface" data-tip="Kelembapan"><span class="material-symbols-outlined">humidity_percentage</span> <span class="lb-txt">Kelembapan</span></button>
+              <button class="layer-btn" data-layer="cloud_surface" data-tip="Awan"><span class="material-symbols-outlined">cloud</span> <span class="lb-txt">Tutupan Awan</span></button>
+              <button class="layer-btn" data-layer="pressure_surface" data-tip="Tekanan"><span class="material-symbols-outlined">speed</span> <span class="lb-txt">Tekanan</span></button>
             </div>
             <button id="layer-next" class="layer-nav" aria-label="Variabel berikutnya"><span class="material-symbols-outlined">chevron_right</span></button>
           </div>
@@ -101,23 +125,28 @@
           </div>
         </div>
 
-        <!-- kanan: lang + zoom + search -->
+        <!-- kanan: lang + zoom + kontrol -->
         <div class="col items-end">
+          <!-- HP: kepala dropdown kontrol (desktop disembunyikan) -->
+          <button id="ctrl-toggle" class="ctrl-toggle" aria-label="Kontrol peta">
+            <span class="material-symbols-outlined ctrl-ico">more_horiz</span>
+            <span class="material-symbols-outlined ctrl-caret">expand_more</span>
+          </button>
           <div class="lang">
             <button class="active">ID</button>
             <button disabled title="Segera">EN</button>
           </div>
           <div class="zoom">
-            <button id="zoom-in" title="Perbesar"><span class="material-symbols-outlined">add</span></button>
-            <button id="zoom-out" title="Perkecil"><span class="material-symbols-outlined">remove</span></button>
+            <button id="zoom-in" aria-label="Perbesar" data-tip="Perbesar"><span class="material-symbols-outlined">add</span></button>
+            <button id="zoom-out" aria-label="Perkecil" data-tip="Perkecil"><span class="material-symbols-outlined">remove</span></button>
           </div>
-          <button id="geo-btn" class="icon-btn" title="Cuaca di lokasi saya"><span class="material-symbols-outlined">my_location</span></button>
-          <button id="city-toggle" class="icon-btn" title="Ikon kondisi cuaca per kota (nyalakan/matikan)"><span class="material-symbols-outlined">partly_cloudy_day</span></button>
-          <button id="cyclone-toggle" class="icon-btn" title="Deteksi siklon + jalur prakiraan (indikasi model GFS)"><span class="material-symbols-outlined">cyclone</span></button>
-          <button id="share-btn" class="icon-btn" title="Bagikan tampilan ini"><span class="material-symbols-outlined">share</span></button>
-          <button id="fs-btn" class="icon-btn" title="Layar penuh (sembunyikan panel)"><span class="material-symbols-outlined">fullscreen</span></button>
+          <button id="geo-btn" class="icon-btn" aria-label="Cuaca di lokasi saya" data-tip="Lokasi"><span class="material-symbols-outlined">my_location</span></button>
+          <button id="city-toggle" class="icon-btn" aria-label="Ikon kondisi cuaca per kota" data-tip="Kondisi"><span class="material-symbols-outlined">partly_cloudy_day</span></button>
+          <button id="cyclone-toggle" class="icon-btn" aria-label="Deteksi siklon + jalur prakiraan" data-tip="Siklon"><span class="material-symbols-outlined">cyclone</span></button>
+          <button id="share-btn" class="icon-btn" aria-label="Bagikan tampilan ini" data-tip="Bagikan"><span class="material-symbols-outlined">share</span></button>
+          <button id="fs-btn" class="icon-btn" aria-label="Layar penuh" data-tip="Layar Penuh"><span class="material-symbols-outlined">fullscreen</span></button>
           <div class="search-wrap">
-            <button id="search-btn" class="icon-btn" title="Cari kota / kabupaten"><span class="material-symbols-outlined">search</span></button>
+            <button id="search-btn" class="icon-btn" aria-label="Cari kota / kabupaten" data-tip="Cari"><span class="material-symbols-outlined">search</span></button>
             <div id="search-box" class="search-box">
               <input id="search-input" type="text" placeholder="Cari kota / kabupaten…" autocomplete="off" />
               <div id="search-results" class="search-results"></div>
@@ -130,6 +159,11 @@
       <div class="ui-bottom">
         <!-- timeline / slider — bawah kiri -->
         <div class="panel timeline">
+          <div id="data-fresh" class="fresh-badge" title="Waktu inisiasi model GFS terakhir">
+            <span class="material-symbols-outlined fresh-ico">error</span>
+            <span class="mono" id="fresh-text"></span>
+            <span class="material-symbols-outlined fresh-chev">chevron_right</span>
+          </div>
           <div class="tl-btns">
             <button id="play-btn" class="tl-btn" title="Play/Pause"><span class="material-symbols-outlined" id="play-icon">play_arrow</span></button>
           </div>
@@ -142,11 +176,6 @@
 
         <!-- legenda — bawah kanan (legenda ikon kondisi di atas, muncul saat toggle) -->
         <div class="legend-col">
-          <div id="data-fresh" class="fresh-badge" title="Waktu inisiasi model GFS terakhir">
-            <span class="material-symbols-outlined fresh-ico">error</span>
-            <span class="mono" id="fresh-text"></span>
-            <span class="material-symbols-outlined fresh-chev">chevron_right</span>
-          </div>
           <div id="cond-legend" class="cond-legend"></div>
           <div class="legend-panel">
             <div class="legend-head mono" id="legend-head">KNOTS</div>
@@ -158,23 +187,6 @@
 
     <!-- Toast kecil (mis. "Link disalin") -->
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
-    <!-- Catatan siklon + dropdown legenda/threshold (muncul saat toggle aktif) -->
-    <div id="cyc-note" class="cyc-note">
-      <div class="cyc-note-top">
-        <span class="material-symbols-outlined">error</span>
-        <span class="cyc-note-txt">Indikasi model GFS, bukan peringatan resmi BMKG/TCWC</span>
-      </div>
-      <div class="cyc-detail">
-        <div class="cyc-row"><span class="material-symbols-outlined cyc-ic" style="color:#7a1fa2">cyclone</span><b>Siklon Lintang Tinggi</b><span class="cyc-th">lintang ≥30° · angin ≥25 kt</span></div>
-        <div class="cyc-row"><span class="material-symbols-outlined cyc-ic" style="color:#d61f1f">cyclone</span><b>Siklon Tropis</b><span class="cyc-th">angin ≥34 kt · putaran kuat</span></div>
-        <div class="cyc-row"><span class="material-symbols-outlined cyc-ic" style="color:#f59f00">cyclone</span><b>Bibit Siklon</b><span class="cyc-th">angin 25-33 kt · berputar</span></div>
-        <div class="cyc-row"><span class="material-symbols-outlined cyc-ic" style="color:#1b7a3d">cyclone</span><b>Sirkulasi Siklonik</b><span class="cyc-th">angin ~20-24 kt · pusaran lemah</span></div>
-      </div>
-      <button type="button" class="cyc-tab" id="cyc-note-toggle" aria-label="Tampilkan keterangan siklon">
-        <span class="material-symbols-outlined cyc-caret">expand_more</span>
-      </button>
-    </div>
 
     <!-- Kartu Tentang -->
     <div id="about-overlay" class="about-overlay">

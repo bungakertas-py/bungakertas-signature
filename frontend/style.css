@@ -135,6 +135,26 @@ html, body {
 .icon-btn.active { background: var(--lime); }
 .icon-btn.active .material-symbols-outlined { color: var(--on-lime); }
 
+/* ---- Kepala dropdown "Parameter" (kiri) & kontrol (kanan) — HP saja ---- */
+.param-toggle, .ctrl-toggle { display: none; }   /* desktop: disembunyikan */
+
+/* Tooltip label 1-kata saat hover tombol kontrol kanan (desktop, ada mouse) */
+@media (hover: hover) and (min-width: 641px) {
+  .col.items-end [data-tip] { position: relative; }
+  .col.items-end [data-tip]::after {
+    content: attr(data-tip);
+    position: absolute; right: calc(100% + 10px); top: 50%;
+    transform: translateY(-50%) translateX(6px);
+    background: var(--ink); color: var(--surface);
+    font-family: var(--font-ui); font-weight: 700; font-size: 11px;
+    letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+    padding: 5px 9px; border: 2px solid var(--ink); box-shadow: var(--shadow-sm);
+    opacity: 0; pointer-events: none; transition: opacity .12s ease, transform .12s ease;
+    z-index: 60;
+  }
+  .col.items-end [data-tip]:hover::after { opacity: 1; transform: translateY(-50%) translateX(0); }
+}
+
 /* ---- Ikon kondisi cuaca per kota (declutter zoom) ---- */
 .city-cond { cursor: pointer; background: none; border: none; }
 .cc-ico {
@@ -443,6 +463,9 @@ html, body {
 #stage.immersive #toast,
 #stage.immersive #point-panel,
 #stage.immersive #pt-reopen { display: none !important; }
+/* HP: tombol fullscreen normalnya tersembunyi dalam dropdown; di immersive
+   paksa tampil agar bisa keluar layar penuh. */
+#stage.immersive #fs-btn { display: flex !important; }
 
 /* Tombol info kecil di brand → buka kartu Tentang */
 .brand-info { flex: none; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
@@ -540,6 +563,8 @@ html, body {
 @media (max-width: 640px) {
   #ui { padding: 10px; }
   .ui-top { gap: 8px; align-items: flex-start; }
+  /* kolom: anak-anaknya rapat ke kiri (jangan meregang mengikuti banner siklon) */
+  .col { align-items: flex-start; }
 
   /* brand ringkas (tagline disembunyikan) */
   .brand { padding: 7px 10px; gap: 8px; }
@@ -550,52 +575,98 @@ html, body {
   /* sembunyikan elemen dekoratif + zoom (pinch/dobel-tap jalan di peta) */
   .selects, .lang, .zoom { display: none; }
 
-  /* kontrol kanan (geo, ikon-kota, cari) → sebaris di kanan-atas */
-  .col.items-end { flex-direction: row; gap: 8px; align-items: flex-start; }
+  /* ===== Kontrol kanan → dropdown VERTIKAL, awalnya ciut jadi 1 tombol ===== */
+  .col.items-end { flex-direction: column; gap: 8px; align-items: flex-end; }
+  #ctrl-toggle {
+    display: flex; align-items: center; justify-content: center; gap: 1px;
+    height: 40px; padding: 0 8px;
+    border: var(--bw) solid var(--ink); background: var(--surface); box-shadow: var(--shadow-sm);
+    cursor: pointer; pointer-events: auto;
+  }
+  #ctrl-toggle .material-symbols-outlined { font-size: 20px; }
+  .ctrl-caret { transition: transform .15s ease; }
+  .col.items-end.ctrl-open .ctrl-caret { transform: rotate(180deg); }
   .icon-btn { width: 40px; height: 40px; box-shadow: var(--shadow-sm); }
+  /* ciut: sembunyikan tombol kontrol; tampil saat .ctrl-open */
+  .col.items-end > .icon-btn,
+  .col.items-end > .search-wrap { display: none; }
+  .col.items-end.ctrl-open > .icon-btn { display: flex; }
+  .col.items-end.ctrl-open > .search-wrap { display: block; }
 
-  /* tombol layer → carousel berlabel: [‹] [strip bisa di-swipe] [›].
-     Panah menggeser ke variabel berikutnya; label tetap tampil (awam). */
+  /* ===== Notif siklon → mengalir tepat di bawah brand (bukan mengambang) ===== */
+  .cyc-note {
+    position: relative; top: auto; left: auto; transform: none;
+    align-self: flex-start; width: max-content; max-width: calc(100vw - 96px);
+    margin: 2px 0 6px;
+  }
+  .cyc-note-top { white-space: normal; }   /* boleh membungkus kalau sempit */
+
+  /* ===== Variabel → dropdown "Parameter" VERTIKAL, ikon saja (kiri) ===== */
   .layer-bar {
-    position: absolute; left: 10px; right: 10px; top: 62px;
-    display: flex; align-items: stretch;
-    border: var(--bw) solid var(--ink); box-shadow: var(--shadow-sm); background: var(--surface);
+    position: static; left: auto; right: auto; top: auto;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+    border: none; box-shadow: none; background: none;
   }
-  .layer-nav {
-    display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
-    width: 30px; border: none; background: var(--surface); cursor: pointer; pointer-events: auto;
+  .param-toggle {
+    display: flex; align-items: center; gap: 6px;
+    height: 40px; padding: 0 12px 0 10px;
+    border: var(--bw) solid var(--ink); background: var(--surface); box-shadow: var(--shadow-sm);
+    font-family: var(--font-ui); font-weight: 700; font-size: 13px; letter-spacing: .02em;
+    text-transform: uppercase; color: var(--ink); cursor: pointer; pointer-events: auto;
   }
-  .layer-nav .material-symbols-outlined { font-size: 22px; }
-  .layer-prev { border-right: var(--bw) solid var(--ink); }
-  .layer-next { border-left: var(--bw) solid var(--ink); }
-  .layer-nav.nav-hidden { opacity: .22; pointer-events: none; }
-
+  .param-ico { font-size: 19px; color: var(--primary); }
+  .param-caret { font-size: 20px; transition: transform .15s ease; }
+  .layer-bar.param-open .param-caret { transform: rotate(180deg); }
+  .layer-nav { display: none; }   /* buang panah carousel lama */
   .layers {
-    position: static; flex: 1 1 auto; min-width: 0;
-    flex-direction: row; width: auto; border: none; box-shadow: none;
-    overflow-x: auto; overflow-y: hidden; scroll-behavior: smooth;
-    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    display: none; position: static; flex-direction: column; width: auto;
+    overflow: visible; box-shadow: var(--shadow-sm);
   }
-  .layers::-webkit-scrollbar { display: none; }
+  .layer-bar.param-open .layers { display: flex; }
   .layer-btn {
-    flex: 0 0 auto; border-bottom: none; border-right: var(--bw) solid var(--ink);
-    padding: 10px 14px; font-size: 13px; gap: 8px; white-space: nowrap;
+    flex: 0 0 auto; justify-content: center; width: 48px; gap: 0;
+    padding: 10px; border-right: none; border-bottom: var(--bw) solid var(--ink);
   }
-  .layer-btn:last-child { border-right: none; }
-  .layer-btn .material-symbols-outlined { font-size: 19px; }
+  .layer-btn:last-child { border-bottom: none; }
+  .layer-btn .material-symbols-outlined { font-size: 22px; }
+  .lb-txt { display: none; }   /* HP: ikon saja */
 
   /* bawah: legenda (atas, bisa scroll) + slider full-width (bawah) */
   .ui-bottom { flex-direction: column; align-items: stretch; gap: 8px; }
-  .legend-col { order: 1; align-self: stretch; max-width: none; }
+  /* legend-col jadi kolom: [badge] [tabel kondisi] [legenda warna], rata kanan */
+  .legend-col {
+    order: 1; align-self: stretch; max-width: none;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  }
   .timeline { order: 2; padding: 8px 10px; }
-  .legend-panel { min-width: 0; }
+  /* legenda warna: selebar isinya (rata kanan), tak melar penuh. Kalau isinya
+     panjang (mis. KNOTS) dibatasi 100% lalu bisa di-scroll. */
+  .legend-panel { min-width: 0; align-self: flex-end; max-width: 100%; }
   .legend { overflow-x: auto; min-width: 0; }
   .legend-cell { width: 34px; min-height: 30px; font-size: 12px; }
-  .cond-legend { right: 0; left: auto; }
 
-  /* Badge "Last update" di HP: mengambang di atas-kanan legenda, awalnya cukup
-     ikon "!" (hemat ruang). Tap → tampil teks + panah tutup; tap panah → ciut. */
-  .fresh-badge { cursor: pointer; gap: 0; padding: 6px 7px; }
+  /* Tabel kondisi cuaca → 1 BARIS ringkas (ikon + label kecil), boleh scroll.
+     In-flow di legend-col, jadi badge di atasnya otomatis ikut naik. */
+  .cond-legend {
+    position: static; right: auto; left: auto; bottom: auto;
+    display: none; flex-direction: row; align-items: stretch;
+    align-self: flex-end; max-width: 100%; overflow: hidden;
+  }
+  .cond-legend.show { display: flex; }
+  .cond-legend .cl-head { display: none; }   /* hemat lebar; ikon = ikon peta */
+  .cond-legend .cl-grid {
+    display: flex; grid-template-columns: none; gap: 7px; padding: 5px 8px;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .cond-legend .cl-grid::-webkit-scrollbar { display: none; }
+  .cond-legend .cl-item { flex: 0 0 auto; gap: 3px; }
+  .cond-legend .cl-lbl { font-size: 9px; white-space: nowrap; }
+  .cc-ico.cc-mini { width: 15px; height: 15px; border-width: 1px; box-shadow: 1px 1px 0 0 var(--ink); }
+  .cc-ico.cc-mini .material-symbols-outlined { font-size: 10px; }
+
+  /* Badge "Last update" di HP: DI ATAS legenda (in-flow di legend-col). Awalnya
+     cukup ikon "!" (hemat ruang). Tap → tampil teks + panah; tap lagi → ciut. */
+  .fresh-badge { position: static; align-self: flex-end; cursor: pointer; gap: 0; padding: 6px 7px; }
   .fresh-badge #fresh-text { display: none; }
   .fresh-badge.open { gap: 6px; padding: 5px 6px 5px 8px; }
   .fresh-badge.open #fresh-text { display: inline; }

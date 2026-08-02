@@ -1179,6 +1179,7 @@ async function init() {
       const key = btn.dataset.layer;
       if (cat.layers[key]) {
         btn.classList.remove("disabled");
+        // Pilih variabel TIDAK menutup dropdown; hanya tombol panah "Parameter" yg menutup.
         btn.addEventListener("click", () => { if (playing) togglePlay(); setActiveLayer(key); });
       } else {
         btn.classList.add("disabled");
@@ -1266,6 +1267,12 @@ async function init() {
     window.addEventListener("resize", updateLayerNav);
     updateLayerNav();
 
+    // HP: dropdown "Parameter" (variabel) & dropdown kontrol kanan (buka/tutup)
+    $("param-toggle")?.addEventListener("click", () =>
+      document.querySelector(".layer-bar")?.classList.toggle("param-open"));
+    $("ctrl-toggle")?.addEventListener("click", () =>
+      document.querySelector(".col.items-end")?.classList.toggle("ctrl-open"));
+
     // Toggle ikon kondisi cuaca per kota + hitung ulang declutter tiap pindah/zoom
     $("city-toggle")?.addEventListener("click", toggleCityIcons);
     $("cyclone-toggle")?.addEventListener("click", toggleCyclones);
@@ -1307,6 +1314,17 @@ async function init() {
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAbout(); });
     // Badge "Last update" (HP): tap ikon "!" → buka teks; tap lagi/panah → tutup.
     $("data-fresh")?.addEventListener("click", () => $("data-fresh").classList.toggle("open"));
+    // Tempatkan badge: desktop → kontainer slider (atas-kanan); HP → dalam legend-col
+    // (di atas legenda; otomatis naik di atas tabel kondisi saat ikon kota aktif).
+    const freshBadge = $("data-fresh");
+    const placeFreshBadge = () => {
+      if (!freshBadge) return;
+      const hp = window.matchMedia("(max-width: 640px)").matches;
+      const host = document.querySelector(hp ? ".legend-col" : ".timeline");
+      if (host && freshBadge.parentElement !== host) host.insertBefore(freshBadge, host.firstChild);
+    };
+    placeFreshBadge();
+    window.addEventListener("resize", placeFreshBadge);
     // Dropdown legenda+threshold di banner indikasi siklon.
     $("cyc-note-toggle")?.addEventListener("click", () => $("cyc-note").classList.toggle("open"));
 
