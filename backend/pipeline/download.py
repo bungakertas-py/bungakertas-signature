@@ -34,14 +34,19 @@ def latest_available_run(now_utc: dt.datetime | None = None) -> dt.datetime:
     return prev.replace(hour=max(run_hours))
 
 
-def build_filter_url(run: dt.datetime, fstep: int, grib_level: str, var_names: list[str]) -> str:
-    """Susun URL NOMADS filter untuk satu langkah forecast."""
+def build_filter_url(run: dt.datetime, fstep: int, grib_level: str, var_names: list[str],
+                     levels: list[str] | None = None) -> str:
+    """Susun URL NOMADS filter untuk satu langkah forecast.
+
+    Bila `levels` diberi (daftar level, mis. ['1000_mb','850_mb',...]), semua level
+    itu diminta sekaligus dalam SATU file (untuk profil vertikal). Bila tidak,
+    pakai `grib_level` tunggal.
+    """
     ymd = run.strftime("%Y%m%d")
     cc = run.strftime("%H")
     fff = f"{fstep:03d}"
     params = {
         "file": f"gfs.t{cc}z.pgrb2.0p25.f{fff}",
-        f"lev_{grib_level}": "on",
         "subregion": "",
         "leftlon": REGION["left_lon"],
         "rightlon": REGION["right_lon"],
@@ -49,6 +54,8 @@ def build_filter_url(run: dt.datetime, fstep: int, grib_level: str, var_names: l
         "bottomlat": REGION["bottom_lat"],
         "dir": f"/gfs.{ymd}/{cc}/atmos",
     }
+    for lv in (levels if levels else [grib_level]):
+        params[f"lev_{lv}"] = "on"
     for v in var_names:
         params[f"var_{v}"] = "on"
 
@@ -58,15 +65,18 @@ def build_filter_url(run: dt.datetime, fstep: int, grib_level: str, var_names: l
 
 
 def download_grib(run: dt.datetime, fstep: int, grib_level: str, var_names: list[str],
-                  dest: Path | None = None, timeout: int = 120) -> Path:
+                  dest: Path | None = None, timeout: int = 120,
+                  levels: list[str] | None = None) -> Path:
     """Unduh satu file GRIB2 subset. Mengembalikan path file lokal.
 
     Melempar RuntimeError bila respons bukan GRIB (mis. run belum tersedia).
+    `levels` opsional: minta banyak level isobarik sekaligus (profil vertikal).
     """
-    url = build_filter_url(run, fstep, grib_level, var_names)
+    url = build_filter_url(run, fstep, grib_level, var_names, levels=levels)
     if dest is None:
         ymd_cc = run.strftime("%Y%m%d_%H")
-        dest = RAW_DIR / f"gfs_{ymd_cc}_f{fstep:03d}_{grib_level}.grib2"
+        tag = "multi" if levels else grib_level
+        dest = RAW_DIR / f"gfs_{ymd_cc}_f{fstep:03d}_{tag}.grib2"
 
     resp = requests.get(url, timeout=timeout)
     resp.raise_for_status()

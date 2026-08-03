@@ -110,6 +110,18 @@ LAYERS = {
 KEEP_PAST_HOURS = 24
 
 # ---------------------------------------------------------------------------
+# PROFIL VERTIKAL (untuk diagram Skew-T log-P per titik). Diambil T/RH/angin di
+# banyak level tekanan sekaligus (1 request/waktu, multi-level), lalu di-downsample
+# ke grid lebih kasar (profil atmosfer mulus, tak perlu 0.25 derajat) untuk file
+# kecil yang dimuat malas saat kartu Skew-T dibuka.
+# ---------------------------------------------------------------------------
+PROFILE_LEVELS = [
+    1000, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500,
+    450, 400, 350, 300, 250, 200, 150, 100, 70, 50,
+]  # hPa, permukaan -> atas
+PROFILE_STRIDE = 4   # ambil tiap-4 titik grid 0.25 -> ~1 derajat
+
+# ---------------------------------------------------------------------------
 # Path output. Data ditulis sebagai file statis (PNG + JSON) yang nanti
 # disajikan langsung ke frontend (tanpa database).
 # ---------------------------------------------------------------------------

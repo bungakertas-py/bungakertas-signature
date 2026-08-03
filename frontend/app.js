@@ -442,6 +442,7 @@ async function showFrame(i) {
   const ts = $("time-slider"); if (ts) ts.value = String(current);
   if (cityIconsOn) refreshCityIcons();   // ikon kondisi kota ikut waktu aktif
   if (cyclonesOn) refreshCyclones();     // siklon + jalur ikut waktu aktif
+  if (skewtOpen && lastPoint && $("point-panel")?.classList.contains("open")) renderSkewTCard();
   updateHash();
 }
 
@@ -509,6 +510,156 @@ function windAt(u, v) {
   const spd = Math.sqrt(u * u + v * v) * MS_TO_KT;
   const deg = (Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360; // arah DATANG
   return { spd, dir: DIRS[Math.round(deg / 45) % 8] };
+}
+
+// ============== PROFIL VERTIKAL (Skew-T) — muat malas & sampel ==============
+let profileData = null;      // { meta, vars:{t,r,u,v} }
+let profileLoading = null;
+let skewtOpen = false;       // kartu Skew-T sedang dibuka?
+
+async function loadProfileData() {
+  if (profileData) return profileData;
+  if (profileLoading) return profileLoading;
+  profileLoading = (async () => {
+    const meta = await fetch(DATA_BASE + "profile_meta.json").then((r) => r.json());
+    const gz = await fetch(DATA_BASE + "profile.bin.gz").then((r) => r.arrayBuffer());
+    const stream = new Blob([gz]).stream().pipeThrough(new DecompressionStream("gzip"));
+    const buf = await new Response(stream).arrayBuffer();
+    const vars = {};
+    for (const v of meta.vars) {
+      const Ctor = v.dtype === "uint8" ? Uint8Array : Int16Array;
+      vars[v.var] = { arr: new Ctor(buf, v.byteOffset, v.byteLength / Ctor.BYTES_PER_ELEMENT),
+                      scale: v.scale, offset: v.offset };
+    }
+    profileData = { meta, vars };
+    return profileData;
+  })();
+  return profileLoading;
+}
+
+// Index waktu profil terdekat dengan valid_time frame yang sedang ditampilkan.
+function profileTimeIndex(pd) {
+  const vt = frames && frames[current] && frames[current].valid_time;
+  const ts = pd.meta.times;
+  const hit = ts.indexOf(vt);
+  if (hit >= 0) return hit;
+  const target = new Date(vt || ts[0]).getTime();
+  let best = 0, bd = Infinity;
+  ts.forEach((t, i) => { const dd = Math.abs(new Date(t).getTime() - target); if (dd < bd) { bd = dd; best = i; } });
+  return best;
+}
+
+// Profil vertikal di (lat,lon) untuk index waktu ti -> {levels,T,RH,u,v} per level.
+function sampleProfile(pd, lat, lon, ti) {
+  const { nx, ny, bounds, dx, dy, levels } = pd.meta;
+  const nlev = levels.length, plane = nx * ny, [w, , , n] = bounds;
+  const fx = Math.max(0, Math.min(nx - 1, (lon - w) / dx));
+  const fy = Math.max(0, Math.min(ny - 1, (n - lat) / dy));
+  const x0 = Math.floor(fx), x1 = Math.min(x0 + 1, nx - 1), tx = fx - x0;
+  const y0 = Math.floor(fy), y1 = Math.min(y0 + 1, ny - 1), ty = fy - y0;
+  const samp = (vv, lev) => {
+    const b = (ti * nlev + lev) * plane;
+    const A = vv.arr[b + y0 * nx + x0], B = vv.arr[b + y0 * nx + x1];
+    const C = vv.arr[b + y1 * nx + x0], D = vv.arr[b + y1 * nx + x1];
+    return ((1 - tx) * (1 - ty) * A + tx * (1 - ty) * B + (1 - tx) * ty * C + tx * ty * D) * vv.scale + vv.offset;
+  };
+  const out = { levels: levels.slice(), T: [], RH: [], u: [], v: [] };
+  for (let l = 0; l < nlev; l++) {
+    out.T.push(samp(pd.vars.t, l)); out.RH.push(Math.max(0, Math.min(100, samp(pd.vars.r, l))));
+    out.u.push(samp(pd.vars.u, l)); out.v.push(samp(pd.vars.v, l));
+  }
+  return out;
+}
+
+// Export PLOT Skew-T (tanpa legenda) ke PNG. Rasterize SVG plot ke canvas,
+// beri latar + border + bayangan neubrutalist agar rapi saat dibagikan.
+function exportSkewTPng() {
+  const wrap = $("pt-skewt-wrap");
+  const svgEl = wrap && wrap.querySelector("svg");   // svg PERTAMA = plot (bukan swatch legenda)
+  if (!svgEl) return;
+  const vb = svgEl.viewBox.baseVal;
+  const W = vb && vb.width ? vb.width : 340, H = vb && vb.height ? vb.height : 380;
+  const xml = new XMLSerializer().serializeToString(svgEl);
+  const img = new Image();
+  img.onload = () => {
+    const s = 2, M = 14, SH = 6;
+    const cw = W + M * 2 + SH, ch = H + M * 2 + SH;
+    const c = document.createElement("canvas");
+    c.width = cw * s; c.height = ch * s;
+    const x = c.getContext("2d");
+    x.scale(s, s);
+    x.fillStyle = "#fcf8f8"; x.fillRect(0, 0, cw, ch);         // latar
+    x.fillStyle = "#1c1b1b"; x.fillRect(M + SH, M + SH, W, H); // bayangan keras
+    x.fillStyle = "#ffffff"; x.fillRect(M, M, W, H);           // latar plot putih
+    x.drawImage(img, M, M, W, H);
+    x.lineWidth = 3; x.strokeStyle = "#1c1b1b"; x.strokeRect(M + 1.5, M + 1.5, W - 3, H - 3);
+    c.toBlob((b) => {
+      if (!b) return;
+      const nm = (sharedPoint && sharedPoint.name) ? sharedPoint.name.replace(/[^\w-]+/g, "_")
+        : (lastPoint ? lastPoint.lat.toFixed(2) + "_" + lastPoint.lon.toFixed(2) : "titik");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(b); a.download = `skewt_${nm}.png`; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }, "image/png");
+  };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+}
+
+// Legenda garis/elemen diagram (di bawah plot, sebelum kartu indeks).
+function skewtLegend() {
+  const line = (c, dash) => `<svg width="24" height="10" viewBox="0 0 24 10"><line x1="1" y1="5" x2="23" y2="5" stroke="${c}" stroke-width="2"${dash ? ` stroke-dasharray="${dash}"` : ""}/></svg>`;
+  const box = (fill) => `<svg width="24" height="10" viewBox="0 0 24 10"><rect x="1" y="1" width="22" height="8" fill="${fill}" stroke="#9aa2b0" stroke-width="0.5"/></svg>`;
+  const barbSw = `<svg width="24" height="12" viewBox="0 0 24 12"><line x1="2" y1="6" x2="19" y2="6" stroke="#222" stroke-width="1.2"/><line x1="19" y1="6" x2="23" y2="1" stroke="#222" stroke-width="1.2"/><line x1="15" y1="6" x2="19" y2="1" stroke="#222" stroke-width="1.2"/></svg>`;
+  const it = (sw, label) => `<div class="skt-lg">${sw}<span>${label}</span></div>`;
+  return `<div class="skt-legend">` +
+    it(line("#e42320"), "Suhu (T)") +
+    it(line("#1f8a4c"), "Titik embun (Td)") +
+    it(line("#1c1b1b", "4 3"), "Jalur parcel") +
+    it(barbSw, "Angin (barbs)") +
+    it(line("#0029d7", "5 3"), "LCL · dasar awan") +
+    it(line("#d97706", "5 3"), "LFC · mulai konveksi") +
+    it(line("#7a1fa2", "5 3"), "EL · puncak konveksi") +
+    it(box("rgba(226,35,32,.30)"), "CAPE · energi naik") +
+    it(box("rgba(35,96,200,.25)"), "CIN · penghambat") +
+    `</div>`;
+}
+
+// Kotak indeks konvektif di bawah diagram.
+function skewtIndexBox(d) {
+  const fmtP = (p) => p ? Math.round(p) + " hPa" : "–";
+  const capeCol = d.cape > 2500 ? "#d61f1f" : d.cape > 1000 ? "#e8590c" : d.cape > 300 ? "#f59f00" : "#2b8a3e";
+  const cell = (label, val, col) =>
+    `<div class="skt-cell"><span class="skt-k">${label}</span><span class="skt-v" style="color:${col || "#1c1b1b"}">${val}</span></div>`;
+  return `<div class="skt-idx">` +
+    cell("CAPE", Math.round(d.cape) + " J/kg", capeCol) +
+    cell("CIN", Math.round(d.cin) + " J/kg", d.cin < -50 ? "#e8590c" : "#5a6472") +
+    cell("LCL", fmtP(d.lcl.p)) +
+    cell("LFC", fmtP(d.lfc)) +
+    cell("EL", fmtP(d.el)) +
+    cell("LI", d.li !== null ? d.li.toFixed(1) : "–", d.li !== null && d.li < -2 ? "#d61f1f" : "#5a6472") +
+    `</div>`;
+}
+
+// Render (atau re-render) kartu Skew-T ke #pt-skewt-wrap untuk titik & waktu aktif.
+async function renderSkewTCard() {
+  const wrap = $("pt-skewt-wrap");
+  if (!wrap || !lastPoint) return;
+  wrap.innerHTML = `<div class="skt-load">Memuat profil…</div>`;
+  let pd;
+  try { pd = await loadProfileData(); }
+  catch (e) { wrap.innerHTML = `<div class="skt-load">Profil belum tersedia.</div>`; return; }
+  if (!skewtOpen) return;                     // keburu ditutup
+  const ti = profileTimeIndex(pd);
+  const prof = sampleProfile(pd, lastPoint.lat, lastPoint.lon, ti);
+  const d = window.SkewT.derive(prof);
+  wrap.innerHTML =
+    `<div class="skt-note">Profil ${fmtValid(pd.meta.times[ti])} · indikasi model GFS (grid ~1°), bukan sounding asli.</div>` +
+    window.SkewT.svg(d, { W: 340, H: 380 }) +
+    `<div class="skt-exp-row"><button type="button" class="skt-export" id="skt-export">` +
+    `<span class="material-symbols-outlined">image</span> Export PNG</button></div>` +
+    skewtLegend() +
+    skewtIndexBox(d);
+  $("skt-export")?.addEventListener("click", exportSkewTPng);
 }
 
 function fmtCoord(lat, lon) {
@@ -849,7 +1000,23 @@ function renderPoint(pd, lat, lon) {
     `<div class="pt-sec">DATA PER-JAM (WIB)</div>` +
     `<div class="pt-table-wrap"><table class="pt-table"><thead><tr>` +
     `<th>Tgl/Jam</th><th>°C</th><th>Angin</th><th>mm/j</th><th>RH%</th><th>Awan%</th><th>hPa</th>` +
-    `</tr></thead><tbody>${rows}</tbody></table></div>`;
+    `</tr></thead><tbody>${rows}</tbody></table></div>` +
+    // Kartu LANJUTAN: profil vertikal Skew-T (dimuat malas saat dibuka)
+    `<button type="button" class="pt-skewt-head${skewtOpen ? " open" : ""}" id="pt-skewt-toggle">` +
+    `<span class="skt-lead material-symbols-outlined">stacked_line_chart</span>` +
+    `<span class="skt-label">Profil Atmosfer · Skew-T</span>` +
+    `<span class="skt-caret material-symbols-outlined">expand_more</span></button>` +
+    `<div class="pt-skewt-wrap${skewtOpen ? " open" : ""}" id="pt-skewt-wrap"></div>`;
+
+  const tog = $("pt-skewt-toggle");
+  if (tog) tog.addEventListener("click", () => {
+    skewtOpen = !skewtOpen;
+    tog.classList.toggle("open", skewtOpen);
+    $("pt-skewt-wrap")?.classList.toggle("open", skewtOpen);
+    if (skewtOpen) renderSkewTCard();
+    else { const w = $("pt-skewt-wrap"); if (w) w.innerHTML = ""; }
+  });
+  if (skewtOpen) renderSkewTCard();   // titik/waktu berubah saat kartu terbuka -> render ulang
 }
 
 function exportCSV() {

@@ -1,13 +1,13 @@
 /* Service worker Kertas Cuaca — cache SHELL app (berversi), data cuaca TETAP
  * online. Naikkan VERSION tiap rilis frontend agar user dapat versi terbaru
  * (cache lama dihapus saat activate). */
-const VERSION = "v4";
+const VERSION = "v5";
 const CACHE = "kertas-cuaca-" + VERSION;
 
 // Shell same-origin (relatif thd scope frontend/). Data model (../backend/…)
 // berada DI LUAR path frontend → sengaja tak di-cache (lihat handler fetch).
 const SHELL = [
-  "./", "./index.html", "./style.css", "./app.js",
+  "./", "./index.html", "./style.css", "./app.js", "./skewt.js",
   "./favicon.svg", "./manifest.webmanifest",
   "./icon-192.png", "./icon-512.png",
   "./data/world_countries.geojson", "./data/idn_provinces.geojson", "./data/id_places.json",

@@ -15,8 +15,9 @@ from pathlib import Path
 
 import numpy as np
 
-from config import KEEP_PAST_HOURS, LAYERS, OUTPUT_DIR
+from config import KEEP_PAST_HOURS, LAYERS, OUTPUT_DIR, PROFILE_LEVELS
 from cyclones import detect_and_track
+from profiles import build_profiles
 from download import download_grib, latest_available_run
 from process import (load_prate_mmhr, process_scalar, process_wind,
                      write_point_data, write_scalar_frame)
@@ -250,6 +251,12 @@ def main() -> None:
         cyc["generated_at"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         (OUTPUT_DIR / "cyclones.json").write_text(json.dumps(cyc))
         print(f"cyclones.json: {len(cyc['tracks'])} track siklon")
+
+        # Profil vertikal (Skew-T): unduh multi-level per waktu -> profile.bin.gz
+        print("\nProfil vertikal (Skew-T):")
+        psz = build_profiles(run, steps, ctx["times"])
+        if psz:
+            print(f"profile.bin.gz: {psz/1e6:.1f} MB ({len(steps)} waktu, {len(PROFILE_LEVELS)} level)")
 
     catalog, total = reconcile_and_catalog(run)
     (OUTPUT_DIR / "catalog.json").write_text(json.dumps(catalog, indent=2))
