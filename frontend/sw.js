@@ -1,7 +1,7 @@
 /* Service worker Kertas Cuaca — cache SHELL app (berversi), data cuaca TETAP
  * online. Naikkan VERSION tiap rilis frontend agar user dapat versi terbaru
  * (cache lama dihapus saat activate). */
-const VERSION = "v3";
+const VERSION = "v4";
 const CACHE = "kertas-cuaca-" + VERSION;
 
 // Shell same-origin (relatif thd scope frontend/). Data model (../backend/…)

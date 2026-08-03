@@ -87,6 +87,15 @@ _TEMP_SCALE = [
     (42,  (0xa5, 0x00, 0x26, 255)),
 ]
 
+# Suhu STRATOSFER 70 hPa (°C) OPAQUE. Di sana jauh lebih dingin (~-45..-75°C)
+# daripada permukaan, jadi skalanya digeser ke rentang dingin sendiri.
+_TEMP_STRATO_SCALE = [
+    (-78, (0x3b, 0x1c, 0x6b, 255)), (-70, (0x25, 0x3f, 0xa0, 255)),
+    (-64, (0x2b, 0x83, 0xba, 255)), (-58, (0x35, 0xa0, 0x8a, 255)),
+    (-52, (0xa6, 0xd9, 0x6a, 255)), (-46, (0xfe, 0xe0, 0x8b, 255)),
+    (-40, (0xfd, 0xae, 0x61, 255)),
+]
+
 # Kelembapan (%) OPAQUE: coklat kering -> hijau -> biru lembap.
 _HUM_SCALE = [
     (0,  (0x7a, 0x45, 0x0a, 255)), (25, (0xb9, 0x84, 0x3a, 255)),
@@ -113,8 +122,14 @@ def _load_wind(grib_path: Path) -> tuple[np.ndarray, np.ndarray, dict]:
     """Muat u/v dari GRIB, orientasikan agar baris-0 = utara, kolom-0 = barat."""
     ds = xr.open_dataset(grib_path, engine="cfgrib",
                          backend_kwargs={"indexpath": ""})
-    u = ds["u10"]
-    v = ds["v10"]
+    # Komponen angin: di 10 m cfgrib menamai "u10"/"v10"; di level isobarik
+    # (mis. 70 hPa) menjadi "u"/"v". Pilih yang ada agar loader dipakai kedua kasus.
+    uname = "u10" if "u10" in ds else ("u" if "u" in ds else None)
+    vname = "v10" if "v10" in ds else ("v" if "v" in ds else None)
+    if uname is None or vname is None:
+        raise RuntimeError(f"Komponen angin tak ditemukan di {grib_path.name}: {list(ds.data_vars)}")
+    u = ds[uname]
+    v = ds[vname]
 
     # pastikan longitude menaik (barat->timur)
     if float(ds.longitude[0]) > float(ds.longitude[-1]):
@@ -225,6 +240,7 @@ _SCALAR_SCALES = {
     "rain_surface": _RAIN_SCALE,
     "rain_accum_surface": _RAIN_ACCUM_SCALE,
     "temp_surface": _TEMP_SCALE,
+    "temp_strato": _TEMP_STRATO_SCALE,
     "humidity_surface": _HUM_SCALE,
     "cloud_surface": _CLOUD_SCALE,
     "pressure_surface": _PRESS_SCALE,

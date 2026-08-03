@@ -84,6 +84,22 @@ LAYERS = {
         "kind": "scalar", "var": "PRMSL", "grib_level": "mean_sea_level",
         "level_label": "surface", "to_unit": 0.01, "units": "hPa",  # Pa -> hPa
     },
+    # --- LEVEL KETINGGIAN: stratosfer 70 hPa (~18 km). Hanya angin & suhu yang
+    # bermakna di sana. Dipilih lewat dropdown LEVEL di frontend; variabel lain
+    # (hujan/kelembapan/awan/tekanan) diredupkan karena tak punya versi ketinggian. ---
+    "wind_strato": {
+        "kind": "vector",
+        "u_var": "UGRD",
+        "v_var": "VGRD",
+        "grib_level": "70_mb",       # isobarik 70 hPa
+        "level_label": "70 hPa",
+        # angin stratosfer bisa lebih kencang (QBO); lebarkan rentang encoding.
+        "unscale": [-50.0, 50.0],
+    },
+    "temp_strato": {
+        "kind": "scalar", "var": "TMP", "grib_level": "70_mb",
+        "level_label": "70 hPa", "offset": -273.15, "units": "°C",  # K -> °C
+    },
 }
 
 # ---------------------------------------------------------------------------

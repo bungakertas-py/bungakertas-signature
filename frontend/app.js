@@ -43,6 +43,18 @@ const LEGENDS = {
     cells: [["980", "#5e3c99", 1], ["995", "#356bc4", 1], ["1005", "#7dc8d8", 0], ["1013", "#f0f0e0", 0],
             ["1020", "#f4c060", 0], ["1030", "#e05a3a", 1]],
   },
+  // --- Level stratosfer 70 hPa ---
+  wind_strato: {
+    head: "KNOTS",
+    cells: [["5", "#2b83ba", 1], ["10", "#5aa8cf", 0], ["15", "#abdda4", 0], ["20", "#66bd63", 0],
+            ["25", "#d9ef8b", 0], ["34", "#fee08b", 0], ["48", "#fdae61", 0], ["64", "#f46d43", 1],
+            ["80", "#d73027", 1], ["100+", "#a50026", 1]],
+  },
+  temp_strato: {
+    head: "°C",
+    cells: [["-70", "#253fa0", 1], ["-64", "#2b83ba", 1], ["-58", "#35a08a", 1],
+            ["-52", "#a6d96a", 0], ["-46", "#fee08b", 0], ["-40", "#fdae61", 0]],
+  },
 };
 
 // Tema per-layer: "dark" = latar peta gelap (overlay putih); "light" = latar
@@ -50,6 +62,7 @@ const LEGENDS = {
 const LAYER_THEME = {
   wind_surface: "dark", rain_surface: "dark", rain_accum_surface: "dark",
   temp_surface: "dark", humidity_surface: "dark", cloud_surface: "dark", pressure_surface: "dark",
+  wind_strato: "dark", temp_strato: "dark",
 };
 
 // Override warna border batas administrasi per-layer (selain default tema).
@@ -58,7 +71,77 @@ const BORDER_COLOR = {
   humidity_surface: "#000000",   // batas hitam di atas heatmap kelembapan
   cloud_surface: "#39ff14",      // batas hijau neon di atas tutupan awan
   pressure_surface: "#000000",   // batas hitam di atas heatmap tekanan
+  temp_strato: "#000000",        // batas hitam di atas heatmap suhu stratosfer
 };
+
+// --- LEVEL KETINGGIAN (dropdown LEVEL) ---
+// Tombol layer memakai kunci PERMUKAAN (data-layer). Saat level "strato" dipilih,
+// tombol Angin & Suhu dipetakan ke varian 70 hPa; variabel lain diredupkan.
+const STRATO_OF = { wind_surface: "wind_strato", temp_surface: "temp_strato" };
+const BASE_OF = { wind_strato: "wind_surface", temp_strato: "temp_surface" };
+// Kunci katalog sebenarnya untuk sebuah tombol pada level aktif.
+function resolveLayer(base) {
+  return (mapLevel === "strato" && STRATO_OF[base]) ? STRATO_OF[base] : base;
+}
+// Apakah data stratosfer ada di katalog (kalau belum diregen, dropdown tetap mati).
+function stratoAvailable() {
+  return !!(catalog && catalog.layers && (catalog.layers.wind_strato || catalog.layers.temp_strato));
+}
+
+// Redupkan tombol yang tak tersedia di level aktif (di strato: hanya Angin & Suhu).
+function applyLevelUI() {
+  const strato = mapLevel === "strato";
+  document.querySelectorAll(".layer-btn[data-layer]").forEach((b) => {
+    const base = b.dataset.layer;
+    const has = catalog && catalog.layers[resolveLayer(base)];
+    const enabled = strato ? (!!STRATO_OF[base] && !!has) : !!has;
+    b.classList.toggle("disabled", !enabled);
+  });
+}
+
+// Samakan tampilan kontrol level: dropdown desktop + tombol level HP.
+function syncLevelControls() {
+  const sel = $("level-select"); if (sel) sel.value = mapLevel;
+  document.querySelectorAll(".level-btn[data-level]").forEach((b) =>
+    b.classList.toggle("active", b.dataset.level === mapLevel));
+}
+
+// Ganti level (dari dropdown, tombol HP, atau restore hash). Pindah ke Angin bila
+// layer aktif tak punya versi di level tujuan.
+function setLevel(lv) {
+  if (lv === mapLevel || !catalog) return;
+  mapLevel = lv;
+  applyLevelUI();
+  let base = activeBase;
+  if (mapLevel === "strato" && !STRATO_OF[base]) base = "wind_surface";
+  activeBase = base;
+  setActiveLayer(resolveLayer(base));
+  syncLevelControls();
+}
+
+// Hidupkan pemilih LEVEL (dropdown desktop + tombol HP) bila data strato tersedia.
+function setupLevelSelect() {
+  const sel = $("level-select");
+  const bar = document.querySelector(".level-bar");
+  if (!stratoAvailable()) {   // data strato belum ada -> matikan pemilih level
+    if (sel) { sel.disabled = true; sel.innerHTML = '<option value="surface">Permukaan</option>'; }
+    if (bar) bar.style.display = "none";
+    return;
+  }
+  if (sel) {
+    sel.disabled = false;
+    sel.innerHTML = '<option value="surface">Permukaan</option>'
+                  + '<option value="strato">Stratosfer, 70 hPa</option>';
+    sel.value = mapLevel;
+    sel.addEventListener("change", () => setLevel(sel.value));
+  }
+  // HP: tombol level + toggle buka-tutup (sama seperti dropdown Parameter)
+  document.querySelectorAll(".level-btn[data-level]").forEach((b) =>
+    b.addEventListener("click", () => setLevel(b.dataset.level)));
+  $("level-toggle")?.addEventListener("click", () =>
+    document.querySelector(".level-bar")?.classList.toggle("level-open"));
+  syncLevelControls();
+}
 
 // Layer dengan data HARIAN (1 frame/hari; slider = tanggal saja, tanpa jam).
 const DAILY_LAYERS = new Set(["rain_accum_surface"]);
@@ -145,8 +228,11 @@ let dataBounds = null;      // L.latLngBounds domain data penuh (untuk overlay)
 let playing = false;
 let playTimer = null;
 let activeLayer = "wind_surface";
+let activeBase = "wind_surface";   // tombol layer aktif (kunci PERMUKAAN); di strato dipetakan ke varian _strato
+let mapLevel = "surface";          // "surface" | "strato" (70 hPa) — dari dropdown LEVEL
 let catalog = null;
-let windVelByTime = {};     // valid_time -> velocity_json (partikel angin utk SEMUA layer)
+let windVelByTime = {};     // PERMUKAAN: valid_time -> velocity_json (partikel angin)
+let windVelStrato = {};     // STRATO 70 hPa: valid_time -> velocity_json
 let worldLayer = null, provLayer = null;   // layer batas (warna diatur per-tema)
 const dataCache = new Map();
 let cityIconsOn = false;    // toggle layer ikon kondisi cuaca per kota
@@ -285,9 +371,10 @@ function renderLegend(layerKey) {
 function setActiveLayer(layerKey) {
   if (!catalog || !catalog.layers[layerKey] || layerKey === activeLayer) return;
   activeLayer = layerKey;
+  activeBase = BASE_OF[layerKey] || layerKey;   // tombol yang menyala = kunci permukaan
   frames = catalog.layers[layerKey].frames;
   document.querySelectorAll(".layer-btn[data-layer]").forEach((b) =>
-    b.classList.toggle("active", b.dataset.layer === layerKey));
+    b.classList.toggle("active", b.dataset.layer === activeBase));
   renderLegend(layerKey);
   applyTheme();
   if (velocityLayer) { map.removeLayer(velocityLayer); velocityLayer = null; } // recreate warna partikel
@@ -320,10 +407,13 @@ async function showFrame(i) {
   } else {
     speedLayer.setUrl(url);
   }
-  speedLayer.setOpacity(activeLayer === "wind_surface" ? 0.92 : 1); // scalar opaque; angin semi
+  const isVector = catalog.layers[activeLayer]?.kind === "vector";
+  speedLayer.setOpacity(isVector ? 0.92 : 1); // scalar opaque; angin semi
 
   // Partikel angin PUTIH — SELALU ada (angin & hujan), dari medan angin waktu sama.
-  const vj = windVelByTime[frame.valid_time];
+  // Ikut LEVEL: di stratosfer pakai medan angin 70 hPa agar konsisten dengan heatmap.
+  const vsrc = (mapLevel === "strato") ? windVelStrato : windVelByTime;
+  const vj = vsrc[frame.valid_time];
   if (vj) {
     const data = await loadVelocity(vj);
     if (!velocityLayer) {
@@ -484,7 +574,9 @@ function chartSeries(pd, lat, lon) {
   // tertinggi di permukaan. Tanpa yDomain → skala otomatis dari data (mulai 0).
   const num = (v, label, unit, color, type, yDomain) =>
     ({ label, unit, color, type, times, values: sampleVar(pd, v, lat, lon), yDomain });
-  switch (activeLayer) {
+  // Panel titik = prakiraan PERMUKAAN (di tempat berdiri). Bila peta sedang di
+  // level strato, grafik ikut variabel permukaan padanannya (data titik = permukaan).
+  switch (BASE_OF[activeLayer] || activeLayer) {
     case "wind_surface": {
       const u = sampleVar(pd, "u", lat, lon), v = sampleVar(pd, "v", lat, lon);
       return { label: "Kecepatan Angin", unit: "kt", color: "#0029d7", type: "line",
@@ -838,7 +930,14 @@ function restoreFromHash() {
   const h = INITIAL_HASH.replace(/^#/, ""); if (!h || !catalog) return;
   const p = new URLSearchParams(h);
   const l = p.get("l");
-  if (l && catalog.layers[l] && l !== activeLayer) setActiveLayer(l);
+  if (l && catalog.layers[l] && l !== activeLayer) {
+    if (BASE_OF[l] && stratoAvailable()) {   // layer versi strato -> aktifkan level dulu
+      mapLevel = "strato";
+      applyLevelUI();
+      syncLevelControls();
+    }
+    setActiveLayer(l);
+  }
   const t = p.get("t");
   if (t && frames) {
     const idx = frames.findIndex((f) => f.valid_time === t);
@@ -1174,13 +1273,19 @@ async function init() {
     const [dw, ds, de, dn] = cat.region.bounds;
     dataBounds = L.latLngBounds([ds, dw], [dn, de]);
 
-    // Wire tombol layer: aktif kalau datanya ada di catalog, disabled kalau belum.
+    // Wire tombol layer: klik memilih varian sesuai LEVEL aktif (permukaan/strato).
+    // Tombol tanpa data (atau diredupkan oleh level) diabaikan saat diklik.
     document.querySelectorAll(".layer-btn[data-layer]").forEach((btn) => {
       const key = btn.dataset.layer;
       if (cat.layers[key]) {
         btn.classList.remove("disabled");
         // Pilih variabel TIDAK menutup dropdown; hanya tombol panah "Parameter" yg menutup.
-        btn.addEventListener("click", () => { if (playing) togglePlay(); setActiveLayer(key); });
+        btn.addEventListener("click", () => {
+          if (btn.classList.contains("disabled")) return;   // diredupkan (mis. di strato)
+          if (playing) togglePlay();
+          activeBase = key;
+          setActiveLayer(resolveLayer(key));
+        });
       } else {
         btn.classList.add("disabled");
       }
@@ -1191,6 +1296,10 @@ async function init() {
     // Medan angin per-waktu — partikel dipakai di SEMUA layer (termasuk hujan).
     const windL = cat.layers["wind_surface"];
     if (windL) windL.frames.forEach((f) => { if (f.velocity_json) windVelByTime[f.valid_time] = f.velocity_json; });
+    const windS = cat.layers["wind_strato"];
+    if (windS) windS.frames.forEach((f) => { if (f.velocity_json) windVelStrato[f.valid_time] = f.velocity_json; });
+
+    setupLevelSelect();   // hidupkan dropdown LEVEL kalau data strato ada
 
     // Bingkai tampilan = kotak inti (VIEW_CORE) yang diperlebar pada sumbu yang
     // perlu hingga RASIONYA sama dengan jendela desktop. Efeknya: seluruh wilayah

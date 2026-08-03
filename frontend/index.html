@@ -100,6 +100,20 @@
             <button id="layer-next" class="layer-nav" aria-label="Variabel berikutnya"><span class="material-symbols-outlined">chevron_right</span></button>
           </div>
 
+          <!-- HP-only: pemilih LEVEL, di bawah Parameter, mekanisme buka-tutup sama.
+               Desktop pakai dropdown LEVEL di panel .selects; kontainer ini display:none. -->
+          <div class="level-bar">
+            <button id="level-toggle" class="param-toggle" aria-label="Level ketinggian">
+              <span class="material-symbols-outlined param-ico">height</span>
+              <span class="param-lbl">Level</span>
+              <span class="material-symbols-outlined param-caret">expand_more</span>
+            </button>
+            <div class="panel levels">
+              <button class="level-btn active" data-level="surface">Permukaan</button>
+              <button class="level-btn" data-level="strato">Stratosfer, 70 hPa</button>
+            </div>
+          </div>
+
           <div class="panel selects">
             <div class="field">
               <div class="label-caps">MODEL</div>
@@ -111,7 +125,7 @@
             <div class="field">
               <div class="label-caps">LEVEL</div>
               <div class="select-wrap">
-                <select id="level-select" disabled><option>Surface</option></select>
+                <select id="level-select" disabled><option value="surface">Permukaan</option></select>
                 <span class="material-symbols-outlined">arrow_drop_down</span>
               </div>
             </div>

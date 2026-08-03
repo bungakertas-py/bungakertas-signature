@@ -90,6 +90,21 @@ html, body {
 /* Panah geser variabel — hanya tampil di HP (lihat media query) */
 .layer-nav { display: none; }
 
+/* ---- Pemilih LEVEL versi HP (desktop pakai dropdown di .selects) ---- */
+.level-bar { display: none; }   /* desktop: sembunyi; HP: ditampilkan di media query */
+.levels { display: none; flex-direction: column; width: max-content; min-width: 150px; }
+.level-btn {
+  display: flex; align-items: center; justify-content: flex-start;
+  padding: 11px 16px; background: var(--surface); color: var(--ink);
+  border: none; border-bottom: var(--bw) solid var(--ink);
+  font-family: var(--font-ui); font-weight: 700; font-size: 13px;
+  text-transform: uppercase; letter-spacing: .02em; text-align: left;
+  white-space: nowrap; cursor: pointer; pointer-events: auto; transition: background .12s;
+}
+.level-btn:last-child { border-bottom: none; }
+.level-btn:hover:not(.active) { background: var(--surface-high); }
+.level-btn.active { background: var(--lime); color: var(--on-lime); }
+
 /* ---- Model / level / init ---- */
 .selects { width: 224px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .field .label-caps { margin-bottom: 4px; }
@@ -630,6 +645,15 @@ html, body {
   .layer-btn:last-child { border-bottom: none; }
   .layer-btn .material-symbols-outlined { font-size: 22px; }
   .lb-txt { display: none; }   /* HP: ikon saja */
+
+  /* ===== Pemilih LEVEL: di bawah Parameter, buka-tutup sama (caret) ===== */
+  .level-bar {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+    border: none; box-shadow: none; background: none;
+  }
+  .level-bar.level-open .param-caret { transform: rotate(180deg); }
+  .levels { box-shadow: var(--shadow-sm); }
+  .level-bar.level-open .levels { display: flex; }
 
   /* bawah: legenda (atas, bisa scroll) + slider full-width (bawah) */
   .ui-bottom { flex-direction: column; align-items: stretch; gap: 8px; }
