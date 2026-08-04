@@ -76,7 +76,7 @@ html, body {
 .layers { display: flex; flex-direction: column; width: 224px; }
 .layer-btn {
   display: flex; align-items: center; gap: 12px;
-  padding: 11px 18px; background: var(--surface); color: var(--ink);
+  padding: 8px 18px; background: var(--surface); color: var(--ink);
   border: none; border-bottom: var(--bw) solid var(--ink);
   font-family: var(--font-ui); font-weight: 700; font-size: 15px;
   text-transform: uppercase; text-align: left; cursor: pointer; transition: background .12s;
@@ -196,7 +196,10 @@ html, body {
    di atasnya via position:absolute → TIDAK menambah tinggi alur, jadi bar warna
    tak terdorong turun/keluar layar saat toggle aktif. */
 .legend-col { position: relative; align-self: flex-end; }
-.cond-legend { position: absolute; right: 0; bottom: calc(100% + 10px); display: none;
+/* Keterangan kondisi = popover yang muncul ke KIRI tombol Kondisi (pola sama
+   dengan kotak pencarian). Dibungkus .city-wrap (position relative). */
+.city-wrap { position: relative; pointer-events: auto; }
+.cond-legend { position: absolute; top: 0; right: 52px; display: none; z-index: 600;
   border: var(--bw) solid var(--ink); background: var(--surface); box-shadow: var(--shadow);
   pointer-events: auto; white-space: nowrap; }
 .cond-legend.show { display: block; }
@@ -261,6 +264,9 @@ html, body {
 }
 .legend-cell:last-child { border-right: none; }
 .legend-cell.dark { color: var(--surface); }
+/* Legenda berlabel KATA (mis. Potensi Badai): sel melebar ikut isi, tak terpotong.
+   Lebih spesifik dari override lebar-tetap di media query, jadi berlaku juga di HP. */
+.legend-words .legend-cell { width: auto; min-width: 44px; padding: 0 11px; white-space: nowrap; }
 
 /* Loading */
 #loading {
@@ -395,16 +401,25 @@ html, body {
 .pt-skewt-head:hover:not(.open) { background: var(--surface-high); }
 .pt-skewt-head .skt-lead { font-size: 19px; color: var(--primary); }
 .pt-skewt-head .skt-label { flex: 1; text-align: left; }
-.pt-skewt-head .skt-caret { font-size: 20px; color: var(--primary); transition: transform .15s ease; }
+/* Caret ikut arah aksi: tertutup = panah ATAS (klik → jump ke atas),
+   terbuka = panah BAWAH (klik → tutup/turun). */
+.pt-skewt-head .skt-caret { font-size: 20px; color: var(--primary); transition: transform .15s ease; transform: rotate(180deg); }
 .pt-skewt-head.open { background: var(--lime); color: var(--on-lime); box-shadow: none; transform: translate(2px, 2px); }
 .pt-skewt-head.open .skt-lead, .pt-skewt-head.open .skt-caret { color: var(--on-lime); }
-.pt-skewt-head.open .skt-caret { transform: rotate(180deg); }
+.pt-skewt-head.open .skt-caret { transform: rotate(0deg); }
 .pt-skewt-wrap { display: none; }
 .pt-skewt-wrap.open { display: block; margin-top: 8px; }
 .skt-note, .skt-load {
   font-size: 10px; color: var(--variant); font-family: var(--font-mono);
   line-height: 1.4; margin: 0 0 6px;
 }
+/* Skeleton loading kartu Skew-T (meniru bentuk plot + indeks) */
+.skt-skel { gap: 8px; }
+.skt-sk-note { height: 12px; width: 82%; }
+.skt-sk-plot { height: 360px; border-radius: 0; border: 2px solid var(--ink); box-shadow: 3px 3px 0 0 var(--ink); }
+.skt-sk-exp { height: 30px; width: 128px; }
+.skt-sk-idx { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 4px; }
+.skt-sk-idx .sk-bar { height: 40px; border-radius: 0; border: 2px solid var(--ink); box-shadow: 2px 2px 0 0 var(--ink); }
 .pt-skewt-wrap svg { border: 2px solid var(--ink); box-shadow: 3px 3px 0 0 var(--ink); background: #fff; display: block; }
 .skt-idx { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
 .skt-cell {
@@ -503,11 +518,19 @@ html, body {
   filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 1px #fff); }
 .cyc-spin .material-symbols-outlined { font-size: 32px; font-variation-settings: "FILL" 1, "wght" 600; }
 @keyframes cyc-rot { to { transform: rotate(360deg); } }
+/* Wadah dua banner (siklon + ITCZ): kolom flex mengambang tengah-atas. Karena
+   in-flow, saat satu banner memuai (dropdown), yang lain terdorong turun. Gap
+   cukup lebar agar tab dropdown (menjuntai ke bawah) tetap terlihat. */
+.notes {
+  position: absolute; top: 20px; right: 132px; left: auto; transform: none;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 20px;
+  z-index: 1200; width: max-content; max-width: 460px; pointer-events: none;
+}
 .cyc-note {
-  position: absolute; top: 70px; left: 50%; transform: translate(-50%, -8px);
+  position: relative;
   display: none; flex-direction: column; max-width: 92vw; width: max-content;
   border: 2px solid var(--ink); box-shadow: var(--shadow-sm); background: var(--surface);
-  z-index: 1200; pointer-events: auto;
+  pointer-events: auto;
 }
 .cyc-note.show { display: flex; }
 .cyc-note-top {
@@ -536,11 +559,60 @@ html, body {
 .cyc-th { color: var(--variant); margin-left: auto; padding-left: 14px; }
 @media (prefers-reduced-motion: reduce) { .cyc-spin { animation: none; } }
 
+/* ITCZ: banner magenta (kontras, dibedakan dari siklon merah); posisi diatur .notes. */
+.itcz-note .cyc-note-top { background: #c1116e; }
+.itcz-note .cyc-caret { color: #c1116e; }
+.itcz-lead { font-family: var(--font-ui); font-size: 10px; line-height: 1.4;
+  max-width: 240px; color: var(--ink); }
+.itcz-sw { width: 18px; height: 12px; flex: none; border: 1px solid var(--ink); }
+.itcz-sw-line { height: 0; border: none; border-top: 3px dashed #ff2ea6; }
+.itcz-sw-band { background: rgba(255,46,166,.28); }
+
+/* Panel FENOMENA: popover ke kiri tombol Fenomena; daftar fenomena + status dot
+   (hijau neon = sedang terjadi, merah = belum). Baris tak-aktif diredupkan.
+   Arus monsun digambar leaflet-velocity. */
+.phenom-wrap { position: relative; pointer-events: auto; }
+.phenom-panel {
+  position: absolute; top: 0; right: 52px; display: none; z-index: 600;
+  width: max-content; max-width: 300px;
+  border: var(--bw) solid var(--ink); background: var(--surface); box-shadow: var(--shadow);
+}
+.phenom-panel.show { display: block; }
+.ph-head { background: var(--ink); color: var(--surface); font-family: var(--font-mono);
+  font-size: 10px; font-weight: 700; letter-spacing: .1em; padding: 5px 10px; }
+.ph-row { display: flex; align-items: flex-start; gap: 9px; padding: 8px 11px;
+  border-top: 1px solid rgba(28,27,27,.12); }
+.ph-row:first-of-type { border-top: none; }
+.ph-row.ph-off { opacity: .5; }               /* belum terjadi → redup */
+.ph-dot { width: 11px; height: 11px; flex: none; border-radius: 50%; margin-top: 2px;
+  border: 1.5px solid var(--ink); }
+.ph-dot.on { background: #39ff14; box-shadow: 0 0 6px 1px #39ff14; }   /* hijau neon = aktif */
+.ph-dot.off { background: #ff2d2d; box-shadow: 0 0 5px 1px #ff2d2d; }  /* merah menyala = belum */
+.ph-txt { display: flex; flex-direction: column; gap: 1px; }
+.ph-txt b { font-family: var(--font-ui); font-size: 11px; font-weight: 700; }
+.ph-txt span { font-family: var(--font-ui); font-size: 10px; color: var(--variant); max-width: 234px; }
+
+/* Penanda pusat tekanan Tinggi (H, biru) / Rendah (L, merah) di layer Tekanan.
+   Halo putih agar terbaca di atas heatmap warna. Huruf serif gaya peta cuaca. */
+.hl-wrap { background: none; border: none; }
+.hl-mark {
+  display: flex; flex-direction: column; align-items: center; line-height: 1;
+  font-family: Georgia, "Times New Roman", serif; font-weight: 700; font-size: 24px;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 2px #fff, 0 0 1px #fff;
+}
+.hl-mark b { font-family: var(--font-mono); font-size: 10px; font-weight: 700; margin-top: 1px; }
+.hl-h { color: #1f4fd6; }
+.hl-l { color: #e03131; }
+
+/* Baris potensi badai (CAPE) di panel titik: chip kategori + catatan angka. */
+.pt-storm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.pt-storm-note { font-family: var(--font-ui); font-size: 10px; color: var(--variant); }
+
 /* Layar penuh / immersive: sisakan HANYA brand Kertas Cuaca + tombol fullscreen.
    Class di #stage (induk #ui & overlay sibling spt #cyc-note/#toast). */
 #stage.immersive #ui .col > *:not(.brand):not(#fs-btn),
 #stage.immersive .ui-bottom,
-#stage.immersive #cyc-note,
+#stage.immersive .notes,
 #stage.immersive #toast,
 #stage.immersive #point-panel,
 #stage.immersive #pt-reopen { display: none !important; }
@@ -670,15 +742,23 @@ html, body {
   .icon-btn { width: 40px; height: 40px; box-shadow: var(--shadow-sm); }
   /* ciut: sembunyikan tombol kontrol; tampil saat .ctrl-open */
   .col.items-end > .icon-btn,
-  .col.items-end > .search-wrap { display: none; }
+  .col.items-end > .search-wrap,
+  .col.items-end > .city-wrap,
+  .col.items-end > .phenom-wrap { display: none; }
   .col.items-end.ctrl-open > .icon-btn { display: flex; }
-  .col.items-end.ctrl-open > .search-wrap { display: block; }
+  .col.items-end.ctrl-open > .search-wrap,
+  .col.items-end.ctrl-open > .city-wrap,
+  .col.items-end.ctrl-open > .phenom-wrap { display: block; }
+  .phenom-panel { right: 46px; }
 
-  /* ===== Notif siklon → mengalir tepat di bawah brand (bukan mengambang) ===== */
-  .cyc-note {
-    position: relative; top: auto; left: auto; transform: none;
-    align-self: flex-start; width: max-content; max-width: calc(100vw - 96px);
+  /* ===== Notif siklon + ITCZ → mengalir tepat di bawah brand (bukan mengambang) ===== */
+  .notes {
+    position: static; top: auto; left: auto; transform: none;
+    align-items: flex-start; gap: 6px; max-width: calc(100vw - 96px);
     margin: 2px 0 6px;
+  }
+  .cyc-note {
+    align-self: flex-start; width: max-content; max-width: calc(100vw - 96px);
   }
   .cyc-note-top { white-space: normal; }   /* boleh membungkus kalau sempit */
 
@@ -737,20 +817,8 @@ html, body {
 
   /* Tabel kondisi cuaca → 1 BARIS ringkas (ikon + label kecil), boleh scroll.
      In-flow di legend-col, jadi badge di atasnya otomatis ikut naik. */
-  .cond-legend {
-    position: static; right: auto; left: auto; bottom: auto;
-    display: none; flex-direction: row; align-items: stretch;
-    align-self: flex-end; max-width: 100%; overflow: hidden;
-  }
-  .cond-legend.show { display: flex; }
-  .cond-legend .cl-head { display: none; }   /* hemat lebar; ikon = ikon peta */
-  .cond-legend .cl-grid {
-    display: flex; grid-template-columns: none; gap: 7px; padding: 5px 8px;
-    overflow-x: auto; scrollbar-width: none;
-  }
-  .cond-legend .cl-grid::-webkit-scrollbar { display: none; }
-  .cond-legend .cl-item { flex: 0 0 auto; gap: 3px; }
-  .cond-legend .cl-lbl { font-size: 9px; white-space: nowrap; }
+  /* Keterangan kondisi = popover ke kiri tombol (dalam dropdown kontrol). */
+  .cond-legend { right: 46px; }
   .cc-ico.cc-mini { width: 15px; height: 15px; border-width: 1px; box-shadow: 1px 1px 0 0 var(--ink); }
   .cc-ico.cc-mini .material-symbols-outlined { font-size: 10px; }
 

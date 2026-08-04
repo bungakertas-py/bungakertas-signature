@@ -17,6 +17,9 @@ import numpy as np
 
 from config import KEEP_PAST_HOURS, LAYERS, OUTPUT_DIR, PROFILE_LEVELS
 from cyclones import detect_and_track
+from itcz import detect_itcz
+from isobars import build_isobars
+from monsoon import build_monsoon, build_monsoon_velocity
 from profiles import build_profiles
 from download import download_grib, latest_available_run
 from process import (load_prate_mmhr, process_scalar, process_wind,
@@ -40,6 +43,7 @@ POINT_VAR_OF = {
     "humidity_surface": ("humidity",),
     "cloud_surface": ("cloud",),
     "pressure_surface": ("pressure",),
+    "storm_potential": ("cape",),
 }
 
 
@@ -251,6 +255,37 @@ def main() -> None:
         cyc["generated_at"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         (OUTPUT_DIR / "cyclones.json").write_text(json.dumps(cyc))
         print(f"cyclones.json: {len(cyc['tracks'])} track siklon")
+
+        # Zona ITCZ (pita + garis pertemuan angin) dari u,v yang sudah ada -> itcz.json
+        itz = detect_itcz(series, times, ctx["grid"])
+        itz["run_time"] = run.strftime("%Y-%m-%dT%H:00:00Z")
+        itz["generated_at"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        (OUTPUT_DIR / "itcz.json").write_text(json.dumps(itz))
+        nseg = sum(len(f) for f in itz["frames"])
+        print(f"itcz.json: {nseg} segmen ({len(itz['frames'])} waktu)")
+
+        # Garis isobar + pusat H/L (auto di layer Tekanan) -> isobars.json
+        iso = build_isobars(series, times, ctx["grid"])
+        iso["run_time"] = run.strftime("%Y-%m-%dT%H:00:00Z")
+        iso["generated_at"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        (OUTPUT_DIR / "isobars.json").write_text(json.dumps(iso))
+        nln = sum(len(f["iso"]) for f in iso["frames"])
+        print(f"isobars.json: {nln} garis ({len(iso['frames'])} waktu)")
+
+        # Status monsun + arus angin rata-rata (animasi) -> monsoon.json + _velocity.json
+        mon = build_monsoon(series, times, ctx["grid"])
+        mon["run_time"] = run.strftime("%Y-%m-%dT%H:00:00Z")
+        (OUTPUT_DIR / "monsoon.json").write_text(json.dumps(mon))
+        mvel = build_monsoon_velocity(series, ctx["grid"], run)   # arus monsun dominan (1 medan)
+        if mvel:
+            (OUTPUT_DIR / "monsoon_velocity.json").write_text(json.dumps(mvel, separators=(",", ":")))
+        # Swirl Borneo Vortex: medan kotak Kalimantan barat (stride halus utk pilinan)
+        bvel = build_monsoon_velocity(series, ctx["grid"], run, lon_min=107.5, lon_max=117.5,
+                                      lat_min=-2.5, lat_max=7.5, stride=2)
+        if bvel:
+            (OUTPUT_DIR / "monsoon_velocity_bv.json").write_text(json.dumps(bvel, separators=(",", ":")))
+        ph = mon.get("phase") or {}
+        print(f"monsoon.json: {ph.get('label', '-')} ({ph.get('season', '-')})")
 
         # Profil vertikal (Skew-T): unduh multi-level per waktu -> profile.bin.gz
         print("\nProfil vertikal (Skew-T):")

@@ -84,6 +84,10 @@ LAYERS = {
         "kind": "scalar", "var": "PRMSL", "grib_level": "mean_sea_level",
         "level_label": "surface", "to_unit": 0.01, "units": "hPa",  # Pa -> hPa
     },
+    "storm_potential": {
+        "kind": "scalar", "var": "CAPE", "grib_level": "surface",
+        "level_label": "surface", "units": "J/kg",   # energi labil (potensi badai/petir)
+    },
     # --- LEVEL KETINGGIAN: stratosfer 70 hPa (~18 km). Hanya angin & suhu yang
     # bermakna di sana. Dipilih lewat dropdown LEVEL di frontend; variabel lain
     # (hujan/kelembapan/awan/tekanan) diredupkan karena tak punya versi ketinggian. ---

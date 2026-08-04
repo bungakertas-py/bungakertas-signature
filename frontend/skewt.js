@@ -214,7 +214,7 @@
   function svg(d, opts) {
     opts = opts || {};
     const W = opts.W || 340, H = opts.H || 380;
-    const pad = { l: 34, r: 34, t: 12, b: 26 };
+    const pad = { l: 34, r: 34, t: 12, b: 34 };
     const g = makeGeom(W, H, pad);
     const parts = [];
     const clip = `<clipPath id="skclip"><rect x="${g.x0}" y="${g.y0}" width="${g.plotW}" height="${g.plotH}"/></clipPath>`;
@@ -265,6 +265,7 @@
       axis += `<text x="${x.toFixed(1)}" y="${(g.yBot + 14).toFixed(1)}" text-anchor="middle" font-size="9" fill="#5a6472" font-family="monospace">${Tc}</text>`;
     }
     axis += `<text x="${(g.x0 - 24).toFixed(1)}" y="${(g.y0 + g.plotH / 2).toFixed(1)}" text-anchor="middle" font-size="9" fill="#8a94a6" font-family="monospace" transform="rotate(-90 ${(g.x0 - 24).toFixed(1)} ${(g.y0 + g.plotH / 2).toFixed(1)})">hPa</text>`;
+    axis += `<text x="${(g.x0 + g.plotW / 2).toFixed(1)}" y="${(g.yBot + 27).toFixed(1)}" text-anchor="middle" font-size="9" fill="#8a94a6" font-family="monospace">Suhu (°C)</text>`;
 
     // --- arsir CAPE (merah) & CIN (biru): antara parcel & lingkungan ---
     let shade = "";

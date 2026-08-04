@@ -43,6 +43,11 @@ const LEGENDS = {
     cells: [["980", "#5e3c99", 1], ["995", "#356bc4", 1], ["1005", "#7dc8d8", 0], ["1013", "#f0f0e0", 0],
             ["1020", "#f4c060", 0], ["1030", "#e05a3a", 1]],
   },
+  storm_potential: {
+    head: "POTENSI BADAI",
+    words: true,   // label kata (bukan angka) → sel melebar ikut isi
+    cells: [["Rendah", "#26324f", 1], ["Sedang", "#5ac86a", 0], ["Tinggi", "#f5a91e", 0], ["Ekstrem", "#8a29c8", 1]],
+  },
   // --- Level stratosfer 70 hPa ---
   wind_strato: {
     head: "KNOTS",
@@ -62,7 +67,7 @@ const LEGENDS = {
 const LAYER_THEME = {
   wind_surface: "dark", rain_surface: "dark", rain_accum_surface: "dark",
   temp_surface: "dark", humidity_surface: "dark", cloud_surface: "dark", pressure_surface: "dark",
-  wind_strato: "dark", temp_strato: "dark",
+  storm_potential: "dark", wind_strato: "dark", temp_strato: "dark",
 };
 
 // Override warna border batas administrasi per-layer (selain default tema).
@@ -70,7 +75,7 @@ const BORDER_COLOR = {
   temp_surface: "#000000",       // batas hitam di atas heatmap suhu
   humidity_surface: "#000000",   // batas hitam di atas heatmap kelembapan
   cloud_surface: "#39ff14",      // batas hijau neon di atas tutupan awan
-  pressure_surface: "#000000",   // batas hitam di atas heatmap tekanan
+  pressure_surface: "#6d7787",   // batas ABU (redup) di layer tekanan → isobar jadi garis utama
   temp_strato: "#000000",        // batas hitam di atas heatmap suhu stratosfer
 };
 
@@ -213,6 +218,14 @@ cyclonePathPane.style.zIndex = 655;
 cyclonePathPane.style.pointerEvents = "none";
 const cyclonePane = map.createPane("cyclones");
 cyclonePane.style.zIndex = 664;
+// ITCZ: pita zona + garis sumbu, konteks latar (non-interaktif, klik tembus ke peta).
+const itczPane = map.createPane("itcz");
+itczPane.style.zIndex = 459;
+itczPane.style.pointerEvents = "none";
+// Isobar: garis kontur tekanan + penanda H/L (otomatis di layer Tekanan).
+const isobarPane = map.createPane("isobar");
+isobarPane.style.zIndex = 461;
+isobarPane.style.pointerEvents = "none";
 // Dua set label: GELAP (teks terang, utk tema gelap/angin) & TERANG (teks gelap,
 // utk tema terang/hujan). Ditukar oleh applyTheme() sesuai layer aktif.
 const _lblOpts = { subdomains: "abcd", pane: "labels", updateWhenZooming: false, keepBuffer: 4 };
@@ -240,6 +253,15 @@ let cityGroup = null;       // L.layerGroup penampung marker ikon kota
 let cyclonesOn = false;     // toggle deteksi siklon + jalur
 let cyclones = null, cyclonesLoading = null;
 let cycloneGroup = null;
+let itczOn = false;         // toggle zona ITCZ (pita + garis pertemuan angin)
+let itcz = null, itczLoading = null;
+let itczGroup = null;
+let isobars = null, isobarsLoading = null;   // garis isobar (auto di layer Tekanan)
+let isobarGroup = null;
+let monsoonOn = false;      // toggle: monsun DOMINAN (warna + banner ikut data) + arus beranimasi
+let monsoon = null, monsoonLoading = null;
+let monsoonVel = null, monsoonVelData = null, monsoonVelLoading = null;
+let borneoVel = null, borneoVelData = null, borneoVelLoading = null, borneoMarker = null;
 
 // Tema per-layer: angin = gelap (latar peta gelap), hujan = terang (latar putih).
 function applyTheme() {
@@ -255,8 +277,10 @@ function applyTheme() {
   // Batas: override per-layer bila ada, jika tidak ikut tema (gelap/putih).
   const color = BORDER_COLOR[activeLayer] || (light ? "#1c1b1b" : "#ffffff");
   const opacity = light ? 0.7 : 0.85;
-  if (worldLayer) worldLayer.setStyle({ color, opacity });
-  if (provLayer) provLayer.setStyle({ color, opacity });
+  // Di layer Tekanan, batas dibuat lebih redup agar isobar jadi garis dominan.
+  const bOpacity = activeLayer === "pressure_surface" ? 0.5 : opacity;
+  if (worldLayer) worldLayer.setStyle({ color, opacity: bOpacity });
+  if (provLayer) provLayer.setStyle({ color, opacity: bOpacity });
 }
 
 // Warna partikel angin sesuai tema: gelap di latar terang, putih di latar gelap.
@@ -364,6 +388,7 @@ function renderLegend(layerKey) {
   const head = $("legend-head"), cells = $("legend-cells");
   if (!def || !head || !cells) return;
   head.textContent = def.head;
+  cells.classList.toggle("legend-words", !!def.words);   // sel melebar utk label kata
   cells.innerHTML = def.cells.map(([label, bg, dark]) =>
     `<div class="legend-cell${dark ? " dark" : ""}" style="background:${bg}">${label}</div>`).join("");
 }
@@ -389,6 +414,7 @@ function setActiveLayer(layerKey) {
   // resolve ulang ke frame terdekat "sekarang" agar tak melompat ke awal data.
   current = nearestNowIndex();
   showFrame(current);
+  syncIsobars();                 // isobar auto muncul/lepas mengikuti layer Tekanan
   // panel titik ikut variabel aktif
   if (pointData && lastPoint && $("point-panel")?.classList.contains("open"))
     renderPoint(pointData, lastPoint.lat, lastPoint.lon);
@@ -442,6 +468,8 @@ async function showFrame(i) {
   const ts = $("time-slider"); if (ts) ts.value = String(current);
   if (cityIconsOn) refreshCityIcons();   // ikon kondisi kota ikut waktu aktif
   if (cyclonesOn) refreshCyclones();     // siklon + jalur ikut waktu aktif
+  if (itczOn) refreshItcz();             // zona ITCZ ikut waktu aktif
+  if (activeLayer === "pressure_surface") refreshIsobars();   // isobar ikut waktu aktif
   if (skewtOpen && lastPoint && $("point-panel")?.classList.contains("open")) renderSkewTCard();
   updateHash();
 }
@@ -640,11 +668,21 @@ function skewtIndexBox(d) {
     `</div>`;
 }
 
+// Skeleton loading kartu Skew-T (meniru layout: catatan + plot + export + legenda + indeks).
+function skewtSkeleton() {
+  return `<div class="pt-skel skt-skel">` +
+    `<div class="sk-bar skt-sk-note"></div>` +
+    `<div class="sk-bar skt-sk-plot"></div>` +
+    `<div class="sk-bar skt-sk-exp"></div>` +
+    `<div class="skt-sk-idx">${"<div class='sk-bar'></div>".repeat(6)}</div>` +
+    `</div>`;
+}
+
 // Render (atau re-render) kartu Skew-T ke #pt-skewt-wrap untuk titik & waktu aktif.
 async function renderSkewTCard() {
   const wrap = $("pt-skewt-wrap");
   if (!wrap || !lastPoint) return;
-  wrap.innerHTML = `<div class="skt-load">Memuat profil…</div>`;
+  wrap.innerHTML = skewtSkeleton();
   let pd;
   try { pd = await loadProfileData(); }
   catch (e) { wrap.innerHTML = `<div class="skt-load">Profil belum tersedia.</div>`; return; }
@@ -737,6 +775,7 @@ function chartSeries(pd, lat, lon) {
     case "humidity_surface": return num("humidity", "Kelembapan", "%", "#1f8a5c", "line", [0, 100]);
     case "cloud_surface": return num("cloud", "Tutupan Awan", "%", "#5a6472", "line", [0, 100]);
     case "pressure_surface": return num("pressure", "Tekanan", "hPa", "#7a3fb0", "line", [1200, 400]);
+    case "storm_potential": return num("cape", "Potensi Badai (CAPE)", "J/kg", "#e84a2f", "line", [0, 4000]);
     case "rain_accum_surface": {
       const rain = sampleVar(pd, "rain", lat, lon), days = {};
       times.forEach((t, i) => { const d = t.slice(0, 10); days[d] = (days[d] || 0) + rain[i] * 3; });
@@ -944,6 +983,21 @@ function pointAdvice(times, rain, cloud, wind, ci) {
     `<span class="adv-chip ${cls}"><span class="material-symbols-outlined">${ic}</span>${txt}</span>`).join("");
 }
 
+// Potensi badai/petir dari CAPE (energi labil). Ambang konvektif yang lazim.
+function stormLevel(c) {
+  if (c >= 3000) return ["Ekstrem", "cc-storm", "thunderstorm", "atmosfer sangat labil, potensi badai petir kuat"];
+  if (c >= 1800) return ["Tinggi", "cc-heavy", "bolt", "berpotensi badai dan petir"];
+  if (c >= 1000) return ["Sedang", "cc-rain", "cloud", "awan hujan bisa tumbuh"];
+  return ["Rendah", "cc-sunny", "wb_sunny", "atmosfer relatif stabil"];
+}
+function stormChip(cape, ci) {
+  if (!cape) return "";
+  const c = Math.round(cape[ci]);
+  const [lvl, cls, ic, note] = stormLevel(c);
+  return `<div class="pt-storm"><span class="adv-chip ${cls}"><span class="material-symbols-outlined">${ic}</span>Potensi badai: ${lvl}</span>` +
+         `<span class="pt-storm-note">CAPE ${c} J/kg, ${note}</span></div>`;
+}
+
 // Kartu prakiraan harian (maks 3 hari): ikon dominan + suhu maks/min + hujan total.
 function dailyCards(times, temp, rain, cloud, ci) {
   const days = {}, fromDate = times[ci].slice(0, 10); // mulai dari hari frame aktif (bukan masa lalu)
@@ -975,7 +1029,7 @@ function renderPoint(pd, lat, lon) {
   const u = sampleVar(pd, "u", lat, lon), v = sampleVar(pd, "v", lat, lon);
   const temp = sampleVar(pd, "temp", lat, lon), rain = sampleVar(pd, "rain", lat, lon);
   const rh = sampleVar(pd, "humidity", lat, lon), cloud = sampleVar(pd, "cloud", lat, lon);
-  const pres = sampleVar(pd, "pressure", lat, lon);
+  const pres = sampleVar(pd, "pressure", lat, lon), cape = sampleVar(pd, "cape", lat, lon);
   const wind = u && v ? u.map((uu, i) => windAt(uu, v[i])) : null;
   lastPoint = { lat, lon, times, temp, rain, wind, rh, cloud, pres };
 
@@ -993,6 +1047,7 @@ function renderPoint(pd, lat, lon) {
   const extras =
     `<div class="pt-summary">${pointSummary(times, temp, rain, cloud, wind, rh, ci)}</div>` +
     `<div class="pt-advice">${pointAdvice(times, rain, cloud, wind, ci)}</div>` +
+    stormChip(cape, ci) +
     `<div class="pt-sec">PRAKIRAAN 3 HARI</div><div class="fc-cards">${dailyCards(times, temp, rain, cloud, ci)}</div>`;
   const spec = chartSeries(pd, lat, lon);
   $("pt-body").innerHTML = extras +
@@ -1013,8 +1068,11 @@ function renderPoint(pd, lat, lon) {
     skewtOpen = !skewtOpen;
     tog.classList.toggle("open", skewtOpen);
     $("pt-skewt-wrap")?.classList.toggle("open", skewtOpen);
-    if (skewtOpen) renderSkewTCard();
-    else { const w = $("pt-skewt-wrap"); if (w) w.innerHTML = ""; }
+    if (skewtOpen) {
+      renderSkewTCard();
+      // Jump: bawa kartu ke atas panel supaya profil mengisi layar (kondisi tergulir ke atas).
+      requestAnimationFrame(() => $("pt-skewt-toggle")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    } else { const w = $("pt-skewt-wrap"); if (w) w.innerHTML = ""; }
   });
   if (skewtOpen) renderSkewTCard();   // titik/waktu berubah saat kartu terbuka -> render ulang
 }
@@ -1091,6 +1149,8 @@ function updateHash() {
     if (sharedPoint.name) p.set("n", sharedPoint.name);
   }
   if (cyclonesOn) p.set("c", "1");
+  if (itczOn) p.set("z", "1");
+  if (monsoonOn) p.set("m", "1");
   history.replaceState(null, "", location.pathname + location.search + "#" + p.toString());
 }
 function restoreFromHash() {
@@ -1111,6 +1171,8 @@ function restoreFromHash() {
     if (idx >= 0) { current = idx; showFrame(current); }
   }
   if (p.get("c") === "1" && !cyclonesOn) toggleCyclones();
+  if (p.get("z") === "1" && !itczOn) toggleItcz();
+  if (p.get("m") === "1" && !monsoonOn) toggleMonsoon();
   const pt = p.get("p");
   if (pt) {
     const [la, lo] = pt.split(",").map(parseFloat);
@@ -1386,6 +1448,270 @@ function toggleCyclones() {
   updateHash();
 }
 
+// ================= ZONA ITCZ (indikasi model GFS) =================
+// Sabuk pertemuan angin pasat dua belahan bumi → banyak awan & hujan. Digambar
+// sebagai PITA zona (konvergensi kuat) + GARIS sumbu. Hanya untuk jam prakiraan
+// run aktif (0..72 jam); waktu lampau tak punya data (konsisten dgn siklon).
+const ITCZ_COLOR = "#ff2ea6";   // magenta terang — kontras di semua warna heatmap
+async function loadItcz() {
+  if (itcz) return itcz;
+  if (!itczLoading) itczLoading = fetch(DATA_BASE + "itcz.json")
+    .then((r) => (r.ok ? r.json() : { times: [], frames: [] }))
+    .then((j) => (itcz = j))
+    .catch(() => (itcz = { times: [], frames: [] }));
+  return itczLoading;
+}
+function refreshItcz() {
+  if (!itczGroup) return;
+  itczGroup.clearLayers();
+  if (!itczOn || !itcz || !itcz.times || !frames[current]) return;
+  const ti = itcz.times.indexOf(frames[current].valid_time);
+  if (ti < 0) return;                         // waktu lampau → tak ada garis
+  for (const sg of itcz.frames[ti] || []) {
+    if (sg.length < 2) continue;
+    // Pita zona: tepi utara (maju) + tepi selatan (mundur) → poligon terisi.
+    const ring = [];
+    for (const p of sg) ring.push([p[2], p[0]]);                // [latN, lon]
+    for (let i = sg.length - 1; i >= 0; i--) ring.push([sg[i][3], sg[i][0]]); // [latS, lon]
+    L.polygon(ring, { pane: "itcz", color: ITCZ_COLOR, weight: 1, opacity: 0.35,
+      fillColor: ITCZ_COLOR, fillOpacity: 0.2, interactive: false }).addTo(itczGroup);
+    // Garis sumbu: casing putih (kontras di latar gelap/terang) + garis teal putus.
+    const axis = sg.map((p) => [p[1], p[0]]);
+    L.polyline(axis, { pane: "itcz", color: "#ffffff", weight: 6, opacity: 0.35,
+      interactive: false, lineCap: "round", lineJoin: "round" }).addTo(itczGroup);
+    L.polyline(axis, { pane: "itcz", color: ITCZ_COLOR, weight: 3, opacity: 0.95,
+      dashArray: "7 5", interactive: false, lineCap: "round", lineJoin: "round" }).addTo(itczGroup);
+  }
+}
+function toggleItcz() {
+  itczOn = !itczOn;
+  $("itcz-toggle") && $("itcz-toggle").classList.toggle("active", itczOn);
+  const note = $("itcz-note");
+  if (itczOn) {
+    if (!itczGroup) itczGroup = L.layerGroup([], { pane: "itcz" });
+    itczGroup.addTo(map);
+    if (note) note.classList.add("show");
+    loadItcz().then(() => { if (itczOn) refreshItcz(); });
+  } else {
+    if (itczGroup) { itczGroup.clearLayers(); map.removeLayer(itczGroup); }
+    if (note) note.classList.remove("show", "open");
+  }
+  updateHash();
+}
+
+// ================= ISOBAR (garis tekanan) =================
+// Otomatis muncul HANYA di layer Tekanan (tanpa tombol): garis kontur PRMSL
+// tiap 4 hPa + penanda pusat tekanan Tinggi (H) / Rendah (L). Melengkapi heatmap
+// jadi peta tekanan gaya klasik. Hanya jam prakiraan run aktif (0..72 jam).
+// Warna isobar MENGIKUTI palet tekanan (dari legenda) pada nilai hPa garis itu,
+// lalu digelapkan ("lebih tua") agar kontras; dipadu halo putih supaya terbaca
+// di zona terang (~1013) maupun gelap (biru/oranye).
+const _PRESS_STOPS = LEGENDS.pressure_surface.cells.map(([lab, hex]) => [parseFloat(lab), hex]);
+const _hex2rgb = (h) => { h = h.replace("#", ""); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; };
+const _rgb2hex = (r, g, b) => "#" + [r, g, b].map((x) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, "0")).join("");
+function _rgb2hsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0; const l = (mx + mn) / 2;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  if (d !== 0) {
+    if (mx === r) h = ((g - b) / d) % 6;
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60; if (h < 0) h += 360;
+  }
+  return [h, s, l];
+}
+function _hsl2rgb(h, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) [r, g] = [c, x]; else if (h < 120) [r, g] = [x, c];
+  else if (h < 180) [g, b] = [c, x]; else if (h < 240) [g, b] = [x, c];
+  else if (h < 300) [r, b] = [x, c]; else [r, b] = [c, x];
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+}
+// Warna isobar: ambil HUE dari palet tekanan pd nilai hPa garis, tapi paksa
+// saturasi cukup & kecerahan medium (0.40) → jelas berwarna spt palet, "lebih
+// tua" tanpa jadi hitam; zona pucat (~1013) pun tampil sbg warna, bukan abu.
+function isobarColor(hPa) {
+  const s = _PRESS_STOPS;
+  let a = s[0], b = s[s.length - 1];
+  if (hPa <= s[0][0]) b = a = s[0];
+  else if (hPa >= s[s.length - 1][0]) a = b = s[s.length - 1];
+  else for (let i = 0; i < s.length - 1; i++) if (hPa >= s[i][0] && hPa <= s[i + 1][0]) { a = s[i]; b = s[i + 1]; break; }
+  const t = b[0] === a[0] ? 0 : (hPa - a[0]) / (b[0] - a[0]);
+  const ca = _hex2rgb(a[1]), cb = _hex2rgb(b[1]);
+  const rgb = [0, 1, 2].map((k) => ca[k] + (cb[k] - ca[k]) * t);
+  const [h, sat] = _rgb2hsl(rgb[0], rgb[1], rgb[2]);
+  const [r, g, bl] = _hsl2rgb(h, Math.min(0.9, Math.max(0.55, sat * 1.25)), 0.4);
+  return _rgb2hex(r, g, bl);
+}
+async function loadIsobars() {
+  if (isobars) return isobars;
+  if (!isobarsLoading) isobarsLoading = fetch(DATA_BASE + "isobars.json")
+    .then((r) => (r.ok ? r.json() : { times: [], frames: [] }))
+    .then((j) => (isobars = j))
+    .catch(() => (isobars = { times: [], frames: [] }));
+  return isobarsLoading;
+}
+function refreshIsobars() {
+  if (!isobarGroup) return;
+  isobarGroup.clearLayers();
+  if (activeLayer !== "pressure_surface" || !isobars || !isobars.times || !frames[current]) return;
+  const ti = isobars.times.indexOf(frames[current].valid_time);
+  if (ti < 0) return;                         // waktu lampau → tak ada isobar
+  const fr = isobars.frames[ti];
+  if (!fr) return;
+  for (const [lv, pts] of fr.iso) {
+    const latlng = pts.map((p) => [p[1], p[0]]);
+    const bold = lv % 20 === 0;               // pertegas tiap 20 hPa (gaya peta cuaca)
+    // Inti = warna palet tekanan (digelapkan) pada nilai hPa garis + HALO PUTIH.
+    // Border admin diredupkan (abu) supaya isobar jadi garis dominan.
+    L.polyline(latlng, { pane: "isobar", color: "#ffffff", weight: bold ? 4 : 3,
+      opacity: 0.6, interactive: false, lineJoin: "round" }).addTo(isobarGroup);
+    L.polyline(latlng, { pane: "isobar", color: isobarColor(lv), weight: bold ? 2.2 : 1.4,
+      opacity: 0.97, interactive: false, lineJoin: "round" }).addTo(isobarGroup);
+  }
+  for (const [t, v, lat, lon] of fr.hl) {
+    const high = t === 1;
+    isobarGroup.addLayer(L.marker([lat, lon], {
+      pane: "isobar", interactive: false, keyboard: false,
+      icon: L.divIcon({ className: "hl-wrap", iconSize: [44, 44], iconAnchor: [22, 22],
+        html: `<span class="hl-mark ${high ? "hl-h" : "hl-l"}">${high ? "H" : "L"}<b>${v}</b></span>` }),
+    }));
+  }
+}
+// Tampilkan/lepas isobar sesuai layer aktif (dipanggil saat ganti layer).
+function syncIsobars() {
+  if (activeLayer === "pressure_surface") {
+    if (!isobarGroup) isobarGroup = L.layerGroup([], { pane: "isobar" });
+    if (!map.hasLayer(isobarGroup)) isobarGroup.addTo(map);
+    loadIsobars().then(() => { if (activeLayer === "pressure_surface") refreshIsobars(); });
+  } else if (isobarGroup) {
+    isobarGroup.clearLayers();
+    if (map.hasLayer(isobarGroup)) map.removeLayer(isobarGroup);
+  }
+}
+
+// ================= MONSUN (indikasi model GFS) =================
+// Status monsun (badge) + ARUS AMBER beranimasi = angin rata-rata musiman lewat
+// leaflet-velocity (warna amber, partikel lebih tebal & jarang → beda dari angin
+// putih sesaat). Medan rata-rata bersifat statik (tak ikut slider).
+async function loadMonsoon() {
+  if (monsoon) return monsoon;
+  if (!monsoonLoading) monsoonLoading = fetch(DATA_BASE + "monsoon.json")
+    .then((r) => (r.ok ? r.json() : { phase: null }))
+    .then((j) => (monsoon = j))
+    .catch(() => (monsoon = { phase: null }));
+  return monsoonLoading;
+}
+// Warna arus & banner mengikuti MONSUN DOMINAN (dari data): Australia=amber,
+// Asia=biru, Peralihan=hijau. Gradasi satu rona → partikel jelas berwarna.
+const MON_AMBER = ["#ffe0a3", "#ffc760", "#ffb020", "#f59e0b", "#e07b00"];
+const MON_BLUE = ["#a9c6f5", "#6f9ae6", "#3f6fce", "#2650a8", "#173b7d"];
+const MON_GREEN = ["#c3e8ae", "#8fd06b", "#5cb63f", "#3f9330", "#2c6f24"];
+function monColors(code) {
+  if (code === "ASIA") return { scale: MON_BLUE, banner: "#1e3f8f" };
+  if (code === "TRANS") return { scale: MON_GREEN, banner: "#1a7a4f" };
+  return { scale: MON_AMBER, banner: "#b26a00" };        // AUS (default)
+}
+async function loadMonsoonVel() {
+  if (monsoonVelData) return monsoonVelData;
+  if (!monsoonVelLoading) monsoonVelLoading = fetch(DATA_BASE + "monsoon_velocity.json")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => (monsoonVelData = j))
+    .catch(() => (monsoonVelData = null));
+  return monsoonVelLoading;
+}
+async function loadBorneoVel() {
+  if (borneoVelData) return borneoVelData;
+  if (!borneoVelLoading) borneoVelLoading = fetch(DATA_BASE + "monsoon_velocity_bv.json")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => (borneoVelData = j))
+    .catch(() => (borneoVelData = null));
+  return borneoVelLoading;
+}
+// Borneo Vortex: swirl partikel TEAL (medan angin kotak Kalimantan → berpilin sendiri)
+// + ikon pusaran di pusat. HANYA saat vorteks terdeteksi (musim DJF).
+function showBorneoVortex(vx) {
+  if (!vx || !vx.active) return;
+  loadBorneoVel().then((bv) => {
+    if (!monsoonOn || !bv) return;
+    if (!borneoVel) borneoVel = L.velocityLayer({
+      displayValues: false, data: bv,
+      minVelocity: 0, maxVelocity: 12, velocityScale: 0.025,
+      particleAge: 110, particleMultiplier: 1 / 300, lineWidth: 2.2,
+      colorScale: ["#7fe6df", "#2fd0c6", "#0fb5ae", "#0a8f89", "#076d68"], frameRate: 24,
+    });
+    if (!map.hasLayer(borneoVel)) borneoVel.addTo(map);
+    if (!borneoMarker && vx.lat != null) borneoMarker = L.marker([vx.lat, vx.lon], {
+      interactive: false, keyboard: false, title: "Borneo Vortex",
+      icon: L.divIcon({ className: "bv-mark", iconSize: [40, 40], iconAnchor: [20, 20],
+        html: `<span class="cyc-spin" style="color:#0fb5ae;font-size:34px"><span class="material-symbols-outlined" style="font-size:34px">cyclone</span></span>` }),
+    });
+    if (borneoMarker && !map.hasLayer(borneoMarker)) borneoMarker.addTo(map);
+  });
+}
+function hideBorneoVortex() {
+  if (borneoVel && map.hasLayer(borneoVel)) map.removeLayer(borneoVel);
+  if (borneoMarker && map.hasLayer(borneoMarker)) map.removeLayer(borneoMarker);
+}
+// Panel FENOMENA: daftar semua fenomena + status. Dot HIJAU NEON = sedang terjadi,
+// MERAH = belum; baris tak-aktif diredupkan (kelas ph-off).
+function fillPhenomPanel() {
+  const el = $("phenom-panel");
+  if (!el || !monsoon) return;
+  const p = monsoon.phase || {};
+  const s = monsoon.surge || {};
+  const vx = monsoon.vortex || {};
+  const konst = p.steadiness != null ? Math.round(p.steadiness * 100) + "%" : "-";
+  // Dot AKTIF ikut warna arus/velocity fenomena; BELUM terjadi = merah menyala.
+  const MON_DOT = { AUS: "#ffb020", ASIA: "#3f6fce", TRANS: "#5cb63f" };
+  const SURGE_DOT = "#3f6fce", BV_DOT = "#0fb5ae", OFF = "#ff2d2d";
+  const row = (active, color, name, status) => {
+    const c = active ? color : OFF;
+    return `<div class="ph-row ${active ? "" : "ph-off"}">` +
+      `<span class="ph-dot" style="background:${c};box-shadow:0 0 6px 1px ${c}"></span>` +
+      `<div class="ph-txt"><b>${name}</b><span>${status}</span></div></div>`;
+  };
+  el.innerHTML = `<div class="ph-head">FENOMENA</div>` +
+    row(true, MON_DOT[p.code] || "#ffb020", "Monsun", `${p.label || "-"}${p.season ? " · " + p.season : ""}. Angin dari ${p.wind_from || "-"}, konsistensi ${konst}.`) +
+    row(!!s.active, SURGE_DOT, "<i>Cold Surge</i>", s.active ? `${s.level}, angin utara ${s.north_kt || 0} kt. ${s.note}` : "Belum terjadi (fenomena musim hujan / DJF).") +
+    row(!!vx.active, BV_DOT, "<i>Borneo Vortex</i>", vx.active ? `Vortisitas ${vx.vort}. ${vx.note}` : "Belum terjadi (fenomena musim hujan / DJF).");
+}
+function toggleMonsoon() {
+  monsoonOn = !monsoonOn;
+  $("mon-toggle") && $("mon-toggle").classList.toggle("active", monsoonOn);
+  const panel = $("phenom-panel");
+  if (monsoonOn) {
+    Promise.all([loadMonsoon(), loadMonsoonVel()]).then(([mon, data]) => {
+      if (!monsoonOn) return;
+      fillPhenomPanel();
+      if (panel) panel.classList.add("show");
+      showBorneoVortex(mon && mon.vortex);
+      if (data) {
+        const code = mon && mon.phase ? mon.phase.code : "AUS";
+        if (!monsoonVel) {
+          monsoonVel = L.velocityLayer({
+            displayValues: false, data,
+            minVelocity: 0, maxVelocity: 14, velocityScale: 0.02,
+            particleAge: 120, particleMultiplier: 1 / 500, lineWidth: 2.4,
+            colorScale: monColors(code).scale, frameRate: 22,
+          });
+          monsoonVel.addTo(map);
+        } else if (!map.hasLayer(monsoonVel)) {
+          monsoonVel.addTo(map);
+        }
+      }
+    });
+  } else {
+    if (monsoonVel && map.hasLayer(monsoonVel)) map.removeLayer(monsoonVel);
+    hideBorneoVortex();
+    if (panel) panel.classList.remove("show");
+  }
+  updateHash();
+}
+
 // ---- Skeleton loading ---------------------------------------------------
 function hideSkeleton() {
   const s = $("skeleton");
@@ -1552,6 +1878,8 @@ async function init() {
     // Toggle ikon kondisi cuaca per kota + hitung ulang declutter tiap pindah/zoom
     $("city-toggle")?.addEventListener("click", toggleCityIcons);
     $("cyclone-toggle")?.addEventListener("click", toggleCyclones);
+    $("itcz-toggle")?.addEventListener("click", toggleItcz);
+    $("mon-toggle")?.addEventListener("click", toggleMonsoon);
     map.on("moveend", () => { if (cityIconsOn) refreshCityIcons(); });
 
     // "Cuaca lokasi saya" — geolokasi browser → buka detail di titik pengguna
@@ -1603,6 +1931,7 @@ async function init() {
     window.addEventListener("resize", placeFreshBadge);
     // Dropdown legenda+threshold di banner indikasi siklon.
     $("cyc-note-toggle")?.addEventListener("click", () => $("cyc-note").classList.toggle("open"));
+    $("itcz-note-toggle")?.addEventListener("click", () => $("itcz-note").classList.toggle("open"));
 
     // Pencarian kota/kabupaten
     const sbox = $("search-box"), sin = $("search-input");

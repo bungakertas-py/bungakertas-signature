@@ -117,6 +117,19 @@ _PRESS_SCALE = [
     (1020, (0xf4, 0xc0, 0x60, 255)), (1030, (0xe0, 0x5a, 0x3a, 255)),
 ]
 
+# CAPE (J/kg) POTENSI BADAI: stabil transparan -> hijau (sedang) -> kuning/oranye
+# (tinggi) -> merah/ungu (ekstrem, potensi badai petir kuat). Ambang mirip acuan
+# konvektif: <300 lemah, ~500-1000 sedang, 1000-2500 tinggi, >2500 ekstrem.
+_CAPE_SCALE = [
+    (0,    (0x14, 0x37, 0x8f,   0)),   # stabil: transparan
+    (500,  (0x2f, 0x9e, 0x7a,   0)),   # <500: transparan
+    (1000, (0x5a, 0xc8, 0x6a, 150)),   # hijau: sedang
+    (1800, (0xea, 0xd8, 0x21, 195)),   # kuning
+    (2600, (0xf5, 0xa9, 0x1e, 216)),   # oranye: tinggi
+    (3400, (0xe4, 0x23, 0x20, 232)),   # merah
+    (4200, (0x8a, 0x29, 0xc8, 246)),   # ungu: ekstrem
+]
+
 
 def _load_wind(grib_path: Path) -> tuple[np.ndarray, np.ndarray, dict]:
     """Muat u/v dari GRIB, orientasikan agar baris-0 = utara, kolom-0 = barat."""
@@ -244,6 +257,7 @@ _SCALAR_SCALES = {
     "humidity_surface": _HUM_SCALE,
     "cloud_surface": _CLOUD_SCALE,
     "pressure_surface": _PRESS_SCALE,
+    "storm_potential": _CAPE_SCALE,
 }
 
 
@@ -393,6 +407,7 @@ _POINT_ENC = {
     "humidity": {"dtype": "uint8", "scale": 1.0,  "offset": 0.0},
     "cloud":    {"dtype": "uint8", "scale": 1.0,  "offset": 0.0},
     "pressure": {"dtype": "int16", "scale": 0.1,  "offset": 1000.0},
+    "cape":     {"dtype": "int16", "scale": 1.0,  "offset": 0.0},   # CAPE J/kg (potensi badai)
 }
 _NP_DTYPE = {"int16": np.int16, "uint8": np.uint8}
 

@@ -60,8 +60,10 @@
             <button id="about-btn" class="brand-info" title="Tentang" aria-label="Tentang"><span class="material-symbols-outlined">info</span></button>
           </div>
 
-          <!-- Catatan siklon + dropdown legenda/threshold (muncul saat toggle aktif).
+          <!-- Wadah catatan siklon + ITCZ. Keduanya mengalir dalam kolom flex agar
+               saat satu banner memuai (dropdown), yang lain terdorong turun.
                Desktop: absolute (mengambang tengah-atas). HP: mengalir di bawah brand. -->
+          <div class="notes">
           <div id="cyc-note" class="cyc-note">
             <div class="cyc-note-top">
               <span class="material-symbols-outlined">error</span>
@@ -76,6 +78,24 @@
             <button type="button" class="cyc-tab" id="cyc-note-toggle" aria-label="Tampilkan keterangan siklon">
               <span class="material-symbols-outlined cyc-caret">expand_more</span>
             </button>
+          </div>
+
+          <!-- Catatan ITCZ + dropdown penjelasan awam (muncul saat toggle aktif). -->
+          <div id="itcz-note" class="cyc-note itcz-note">
+            <div class="cyc-note-top">
+              <span class="material-symbols-outlined">looks</span>
+              <span class="cyc-note-txt">Zona pertemuan angin (ITCZ), indikasi model GFS</span>
+            </div>
+            <div class="cyc-detail">
+              <div class="itcz-lead">Sabuk tempat angin pasat dua belahan bumi bertemu lalu naik, memicu banyak awan dan hujan. Posisinya bergeser tiap musim, dan bisa putus-putus di sekitar Indonesia.</div>
+              <div class="cyc-row"><span class="itcz-sw itcz-sw-line"></span><b>Garis</b><span class="cyc-th">sumbu pertemuan angin</span></div>
+              <div class="cyc-row"><span class="itcz-sw itcz-sw-band"></span><b>Pita</b><span class="cyc-th">zona konvergensi, awan &amp; hujan</span></div>
+            </div>
+            <button type="button" class="cyc-tab" id="itcz-note-toggle" aria-label="Tampilkan keterangan ITCZ">
+              <span class="material-symbols-outlined cyc-caret">expand_more</span>
+            </button>
+          </div>
+
           </div>
 
           <div class="layer-bar">
@@ -96,6 +116,7 @@
               <button class="layer-btn" data-layer="humidity_surface" data-tip="Kelembapan"><span class="material-symbols-outlined">humidity_percentage</span> <span class="lb-txt">Kelembapan</span></button>
               <button class="layer-btn" data-layer="cloud_surface" data-tip="Awan"><span class="material-symbols-outlined">cloud</span> <span class="lb-txt">Tutupan Awan</span></button>
               <button class="layer-btn" data-layer="pressure_surface" data-tip="Tekanan"><span class="material-symbols-outlined">speed</span> <span class="lb-txt">Tekanan</span></button>
+              <button class="layer-btn" data-layer="storm_potential" data-tip="Potensi Badai"><span class="material-symbols-outlined">thunderstorm</span> <span class="lb-txt">Potensi Badai</span></button>
             </div>
             <button id="layer-next" class="layer-nav" aria-label="Variabel berikutnya"><span class="material-symbols-outlined">chevron_right</span></button>
           </div>
@@ -155,8 +176,16 @@
             <button id="zoom-out" aria-label="Perkecil" data-tip="Perkecil"><span class="material-symbols-outlined">remove</span></button>
           </div>
           <button id="geo-btn" class="icon-btn" aria-label="Cuaca di lokasi saya" data-tip="Lokasi"><span class="material-symbols-outlined">my_location</span></button>
-          <button id="city-toggle" class="icon-btn" aria-label="Ikon kondisi cuaca per kota" data-tip="Kondisi"><span class="material-symbols-outlined">partly_cloudy_day</span></button>
+          <div class="city-wrap">
+            <button id="city-toggle" class="icon-btn" aria-label="Ikon kondisi cuaca per kota" data-tip="Kondisi"><span class="material-symbols-outlined">partly_cloudy_day</span></button>
+            <div id="cond-legend" class="cond-legend"></div>
+          </div>
           <button id="cyclone-toggle" class="icon-btn" aria-label="Deteksi siklon + jalur prakiraan" data-tip="Siklon"><span class="material-symbols-outlined">cyclone</span></button>
+          <button id="itcz-toggle" class="icon-btn" aria-label="Zona pertemuan angin (ITCZ)" data-tip="ITCZ"><span class="material-symbols-outlined">looks</span></button>
+          <div class="phenom-wrap">
+            <button id="mon-toggle" class="icon-btn" aria-label="Fenomena atmosfer" data-tip="Fenomena"><span class="material-symbols-outlined">explore</span></button>
+            <div id="phenom-panel" class="phenom-panel"></div>
+          </div>
           <button id="share-btn" class="icon-btn" aria-label="Bagikan tampilan ini" data-tip="Bagikan"><span class="material-symbols-outlined">share</span></button>
           <button id="fs-btn" class="icon-btn" aria-label="Layar penuh" data-tip="Layar Penuh"><span class="material-symbols-outlined">fullscreen</span></button>
           <div class="search-wrap">
@@ -190,7 +219,6 @@
 
         <!-- legenda — bawah kanan (legenda ikon kondisi di atas, muncul saat toggle) -->
         <div class="legend-col">
-          <div id="cond-legend" class="cond-legend"></div>
           <div class="legend-panel">
             <div class="legend-head mono" id="legend-head">KNOTS</div>
             <div class="legend" id="legend-cells"></div>
