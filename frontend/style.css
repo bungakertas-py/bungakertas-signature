@@ -72,6 +72,19 @@ html, body {
 .brand-text strong { font-family: var(--font-display); font-size: 20px; letter-spacing: -.01em; }
 .brand-text span { font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em; color: var(--variant); margin-top: 5px; }
 
+/* ---- Kartu link ke Kertas Fenomena (ENSO & IOD) ---- */
+.phenom-link { display: flex; align-items: center; gap: 11px; padding: 9px 13px; width: max-content; max-width: 264px;
+  text-decoration: none; color: var(--ink); cursor: pointer; transition: transform .1s, box-shadow .1s, background .1s; }
+.phenom-link:hover { background: var(--lime); transform: translate(-2px, -2px); box-shadow: 8px 8px 0 0 var(--ink); }
+.phenom-link .pl-ico { flex: none; color: var(--primary); font-size: 26px; }
+.phenom-link:hover .pl-ico { color: var(--on-lime); }
+.pl-txt { display: flex; flex-direction: column; line-height: 1.1; }
+.pl-txt strong { font-family: var(--font-display); font-size: 14px; letter-spacing: -.01em; }
+.pl-txt span { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .03em; color: var(--variant); margin-top: 4px; }
+.phenom-link:hover .pl-txt span { color: var(--on-lime); }
+.pl-go { flex: none; font-size: 18px; color: var(--variant); }
+.phenom-link:hover .pl-go { color: var(--on-lime); }
+
 /* ---- Layer selector ---- */
 .layers { display: flex; flex-direction: column; width: 224px; }
 .layer-btn {
